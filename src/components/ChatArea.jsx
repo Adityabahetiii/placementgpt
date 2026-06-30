@@ -73,7 +73,7 @@ export default function ChatArea() {
       content: msg.text,
     }));
 
-    const response = await fetch(`https://placementgpt-backend.onrender.com/chat`, {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
