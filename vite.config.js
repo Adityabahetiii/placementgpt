@@ -9,8 +9,8 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/analyze-resume': 'http://localhost:5000',
-      '/chat': 'http://localhost:5000',
+      '/analyze-resume': 'https://placementgpt-backend.onrender.com',
+      '/chat': 'https://placementgpt-backend.onrender.com',
     },
   },
 })
