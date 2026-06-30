@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@plugin "@tailwindcss/typography";
+body {
+  margin: 0;
+  background-color: #020617;
+  color: white;
+  font-family: Inter, sans-serif;
+}
+.prose p {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  margin-top: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose ul,
+.prose ol {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.prose pre {
+  margin-top: 0.6rem;
+  margin-bottom: 0.6rem;
+}
