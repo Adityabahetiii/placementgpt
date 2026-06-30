@@ -488,6 +488,79 @@ Requirements:
     });
   }
 });
+app.post("/analyze-resume", async (req, res) => {
+  try {
+    const { resumeText } = req.body;
+
+    if (!resumeText) {
+      return res.status(400).json({
+        error: "Resume text is required.",
+      });
+    }
+
+    const prompt = `
+You are an expert ATS Resume Reviewer.
+
+Analyze the following resume and return ONLY valid JSON.
+
+Required format:
+
+{
+  "atsScore": 0,
+  "verdict": "",
+  "strengths": [],
+  "weaknesses": [],
+  "missingKeywords": [],
+  "suggestions": []
+}
+
+Rules:
+- atsScore should be between 0-100.
+- strengths should be an array.
+- weaknesses should be an array.
+- missingKeywords should be an array.
+- suggestions should be an array.
+- Do NOT return markdown.
+- Do NOT wrap inside code blocks.
+
+Resume:
+
+${resumeText}
+`;
+
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      temperature: 0.3,
+      max_tokens: 1200,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const raw = completion.choices[0].message.content;
+
+    const analysis = extractJson(raw);
+
+    if (!analysis) {
+      return res.status(500).json({
+        error: "Failed to parse AI response.",
+      });
+    }
+
+    analysis.extractedText = resumeText;
+
+    res.json(analysis);
+  } catch (err) {
+    console.error("Resume Analysis Error:", err);
+
+    res.status(500).json({
+      error: "Failed to analyze resume.",
+    });
+  }
+});
 app.get("/", (req, res) => {
   res.json({
     success: true,
