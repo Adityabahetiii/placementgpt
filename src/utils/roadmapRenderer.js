@@ -286,6 +286,35 @@ function renderWrappedTextLines(lines, x, y, lineHeight, color, fontSize, fontWe
     .join("");
 }
 
+function renderSkillRows(skills, x, y, width, theme) {
+  const items = skills.length ? skills : ["No skills listed."];
+  let cursorY = y;
+
+  return items
+    .map((skill) => {
+      const lines = wrapText(String(skill), width > 900 ? 54 : 42).slice(0, 2);
+      const blockHeight = lines.length * 20 + 14;
+      const itemY = cursorY;
+      cursorY += blockHeight;
+
+      return `
+        <g>
+          <circle cx="${x + 6}" cy="${itemY + 6}" r="3.5" fill="${theme.accentTwo}" />
+          ${renderWrappedTextLines(
+            lines,
+            x + 18,
+            itemY,
+            20,
+            theme.accentTwo,
+            16,
+            500
+          )}
+        </g>
+      `;
+    })
+    .join("");
+}
+
 function getPhaseNodeColor(template, index) {
   return index % 2 === 0 ? template.accent : template.node;
 }
@@ -342,9 +371,10 @@ function renderPhaseCard(phase, index, theme, layout, width, topY) {
   const cardWidth = layout === "stacked" ? 1260 : 620;
   const titleLines = wrapText(phase.title || `Phase ${index + 1}`, 28).slice(0, 2);
   const skillItems = Array.isArray(phase.skills) ? phase.skills.filter(Boolean) : [];
-  const skillLines = skillItems.flatMap((skill) => wrapText(String(skill), 52).slice(0, 2));
+  const skillLayout = skillItems.map((skill) => wrapText(String(skill), 52).slice(0, 2));
+  const skillBlockHeight = skillLayout.reduce((total, lines) => total + lines.length * 20 + 14, 0);
   const outcomeLines = wrapText(phase.outcome || "", 58).slice(0, 3);
-  const cardHeight = 178 + titleLines.length * 28 + skillLines.length * 22 + outcomeLines.length * 24;
+  const cardHeight = 180 + titleLines.length * 30 + skillBlockHeight + outcomeLines.length * 24;
   const isLeft = layout === "center" ? index % 2 === 0 : true;
   const cardX =
     layout === "stacked"
@@ -360,8 +390,8 @@ function renderPhaseCard(phase, index, theme, layout, width, topY) {
   const nodeColor = getPhaseNodeColor(theme, index);
   const titleY = cardY + 56;
   const skillsTitleY = cardY + 118;
-  const skillsStartY = cardY + 152;
-  const outcomeTitleY = skillsStartY + skillLines.length * 22 + 20;
+  const skillsStartY = cardY + 148;
+  const outcomeTitleY = skillsStartY + skillBlockHeight + 20;
   const outcomeStartY = outcomeTitleY + 30;
 
   const connector = layout === "stacked"
@@ -383,17 +413,7 @@ function renderPhaseCard(phase, index, theme, layout, width, topY) {
       ${titleLines[1] ? `<text x="${cardX + 28}" y="${titleY + 30}" fill="${theme.text}" font-size="24" font-weight="700">${escapeXml(titleLines[1])}</text>` : ""}
 
       <text x="${cardX + 28}" y="${skillsTitleY}" fill="${theme.accent}" font-size="18" font-weight="700" letter-spacing="0.14em">SKILLS</text>
-      ${skillLines.length
-        ? renderWrappedTextLines(
-            skillLines.slice(0, 8).map((line) => `• ${line}`),
-            cardX + 28,
-            skillsStartY,
-            22,
-            theme.accentTwo,
-            18,
-            500
-          )
-        : `<text x="${cardX + 28}" y="${skillsStartY}" fill="${theme.muted}" font-size="18" font-weight="400">No skills listed.</text>`}
+      ${renderSkillRows(skillItems.slice(0, 6), cardX + 28, skillsStartY, cardWidth - 56, theme)}
 
       <text x="${cardX + 28}" y="${outcomeTitleY}" fill="${theme.accent}" font-size="18" font-weight="700" letter-spacing="0.14em">OUTCOME</text>
       ${renderWrappedTextLines(
