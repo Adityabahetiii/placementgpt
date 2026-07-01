@@ -285,7 +285,8 @@ function calculateHeroLayout(roadmap) {
 
 function calculateCardLayout(phase, cardWidth, cardX, cardY, theme) {
   const titleText = phase.title || "";
-  const titleLines = wrapText(titleText, 28).slice(0, 2);
+  const maxTitleChars = cardWidth > 800 ? 60 : 28;
+  const titleLines = wrapText(titleText, maxTitleChars).slice(0, 2);
   if (titleLines.length === 0) {
     titleLines.push("Phase");
   }
@@ -311,7 +312,9 @@ function calculateCardLayout(phase, cardWidth, cardX, cardY, theme) {
     let row = 0;
 
     skills.forEach((skill) => {
-      const chipWidth = Math.min(208, 34 + skill.length * 8);
+      // Clean and truncate skill if too long to prevent wrapping issues
+      const cleanSkill = skill.length > 55 ? skill.slice(0, 52) + "..." : skill;
+      const chipWidth = Math.min(maxChipWidth, 34 + cleanSkill.length * 8.2);
       const neededWidth = usedWidth === 0 ? chipWidth : chipWidth + 10;
 
       if (usedWidth > 0 && usedWidth + neededWidth > maxChipWidth) {
@@ -325,7 +328,7 @@ function calculateCardLayout(phase, cardWidth, cardX, cardY, theme) {
         x: cursorX,
         y: cursorY,
         width: chipWidth,
-        label: skill,
+        label: cleanSkill,
       });
 
       cursorX += chipWidth + 10;
@@ -337,7 +340,8 @@ function calculateCardLayout(phase, cardWidth, cardX, cardY, theme) {
 
   // Outcome block
   const outcomeText = (phase.outcome || "").trim();
-  const outcomeLines = outcomeText ? wrapText(outcomeText, 42).slice(0, 3) : [];
+  const maxOutcomeChars = cardWidth > 800 ? 95 : 52;
+  const outcomeLines = outcomeText ? wrapText(outcomeText, maxOutcomeChars).slice(0, 3) : [];
   const outcomePositions = [];
 
   if (outcomeLines.length > 0) {
@@ -467,7 +471,7 @@ function renderPhaseCard(cardLayout, theme, layout, width) {
       <line x1="${nodeX}" y1="${cardY + 14}" x2="${nodeX}" y2="${cardY + cardHeight - 14}" stroke="${theme.line}" stroke-width="4" stroke-dasharray="8 10" />
     `
     : `
-      <path d="M ${nodeX} ${cardCenterY} C ${nodeX + shift * 0.98} ${cardCenterY - 24}, ${targetX} ${cardCenterY - 24}, ${targetX} ${cardCenterY}" fill="none" stroke="${theme.line}" stroke-width="4" />
+      <path d="M ${nodeX} ${cardCenterY} C ${nodeX + shift * 0.4} ${cardCenterY - 15}, ${targetX - shift * 0.4} ${cardCenterY - 15}, ${targetX} ${cardCenterY}" fill="none" stroke="${theme.line}" stroke-width="4" />
     `;
 
   const titleBlock = titleLines
@@ -595,6 +599,12 @@ export function buildRoadmapSvg(roadmap, templateId) {
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMin meet" role="img" aria-label="${escapeXml(roadmap?.title || "Roadmap infographic")}" style="width:100%;height:auto;display:block;">
       <defs>
+        <style type="text/css">
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap');
+          text {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          }
+        </style>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="${theme.background[0]}" />
           <stop offset="55%" stop-color="${theme.background[1]}" />
