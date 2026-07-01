@@ -87,6 +87,28 @@ export default function ChatArea() {
       throw new Error(data.error || "Failed to get response");
     }
 
+    // If the server indicates the response was truncated and can be continued,
+    // request a continuation automatically (no UI changes required).
+    if (data && data.can_continue) {
+      try {
+        const contResp = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ messages: apiMessages, continue: true }),
+        });
+
+        const contData = await contResp.json();
+
+        if (contResp.ok && contData && contData.reply) {
+          return contData.reply;
+        }
+      } catch (err) {
+        console.error("Continuation request failed:", err);
+      }
+    }
+
     return data.reply;
   };
 

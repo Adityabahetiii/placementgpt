@@ -241,10 +241,15 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+    // Allow the client to request a continuation by setting `continue: true`.
+    // We'll make one extra model call to continue the previous assistant reply
+    // when requested. By default, increase token limit to avoid early truncation.
+    const maxTokens = 4096;
+
     const completion = await groq.chat.completions.create({
       model: MODEL,
       temperature: 0.7,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       messages: [
         {
           role: "system",
@@ -255,8 +260,64 @@ app.post("/chat", async (req, res) => {
       ],
     });
 
+    const choice = completion.choices && completion.choices[0];
+    const content = choice?.message?.content || "";
+    const finishReason = choice?.finish_reason || choice?.finishReason || null;
+
+    // If model stopped because of length, provide a friendly hint and flags.
+    const truncated = finishReason === "length" || finishReason === "max_tokens";
+
+    let replyText = content;
+
+    if (truncated) {
+      // Append a short user-visible hint so end-users know they can continue.
+      replyText = `${content}\n\nThe response exceeded the maximum length. Click Continue to generate the remaining content.`;
+    }
+
+    // If client asked for an explicit continuation in this request, perform one continuation call.
+    if (req.body.continue === true && truncated) {
+      try {
+        const contCompletion = await groq.chat.completions.create({
+          model: MODEL,
+          temperature: 0.7,
+          max_tokens: maxTokens,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Continue the previous assistant reply from where it stopped. Do not repeat previous content. Continue naturally.",
+            },
+            ...messages,
+          ],
+        });
+
+        const contChoice = contCompletion.choices && contCompletion.choices[0];
+        const contText = contChoice?.message?.content || "";
+        const contFinish = contChoice?.finish_reason || contChoice?.finishReason || null;
+
+        // Combine previous and continuation pieces into one reply string.
+        replyText = `${content}\n${contText}`;
+
+        // Update truncated flag based on continuation result.
+        const stillTruncated = contFinish === "length" || contFinish === "max_tokens";
+
+        return res.json({
+          reply: replyText,
+          finish_reason: contFinish,
+          truncated: stillTruncated,
+          can_continue: stillTruncated,
+        });
+      } catch (err) {
+        console.error("CHAT CONTINUATION ERROR:", err);
+        // Fall back to returning the partial reply with metadata.
+      }
+    }
+
     return res.json({
-      reply: completion.choices[0].message.content,
+      reply: replyText,
+      finish_reason: finishReason,
+      truncated,
+      can_continue: truncated,
     });
   } catch (error) {
     console.error("CHAT ERROR:", error);
@@ -335,7 +396,7 @@ app.post("/generate-roadmap", async (req, res) => {
     const completion = await groq.chat.completions.create({
       model: MODEL,
       temperature: 0.35,
-      max_tokens: 2200,
+      max_tokens: 4096,
       messages: [
         {
           role: "system",
@@ -379,7 +440,38 @@ Create 4 to 6 phases. Each phase should represent a logical milestone. Keep the 
       ],
     });
 
-    const raw = completion.choices[0].message.content;
+    const choice = completion.choices && completion.choices[0];
+    let raw = choice?.message?.content || "";
+    const finishReason = choice?.finish_reason || choice?.finishReason || null;
+
+    // If the model stopped because of length, try one automatic continuation
+    if (finishReason === "length" || finishReason === "max_tokens") {
+      try {
+        const cont = await groq.chat.completions.create({
+          model: MODEL,
+          temperature: 0.35,
+          max_tokens: 4096,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Continue the previous JSON output exactly where it stopped. Return only the remaining JSON content without markdown or explanation.",
+            },
+            {
+              role: "user",
+              content: `Goal: ${goal}\nDuration: ${duration}\nLevel: ${level}`,
+            },
+          ],
+        });
+
+        const contChoice = cont.choices && cont.choices[0];
+        const contText = contChoice?.message?.content || "";
+        raw = `${raw}\n${contText}`;
+      } catch (err) {
+        console.error("ROADMAP CONTINUATION ERROR:", err);
+      }
+    }
+
     console.log("ROADMAP RAW:", raw);
 
     const roadmap = extractJson(raw);
@@ -466,7 +558,7 @@ ${resumeText}
     const completion = await groq.chat.completions.create({
       model: MODEL,
       temperature: 0.3,
-      max_tokens: 1200,
+      max_tokens: 4096,
       messages: [
         {
           role: "user",
@@ -475,7 +567,36 @@ ${resumeText}
       ],
     });
 
-    const raw = completion.choices[0].message.content;
+    const choice = completion.choices && completion.choices[0];
+    let raw = choice?.message?.content || "";
+    const finishReason = choice?.finish_reason || choice?.finishReason || null;
+
+    if (finishReason === "length" || finishReason === "max_tokens") {
+      try {
+        const cont = await groq.chat.completions.create({
+          model: MODEL,
+          temperature: 0.3,
+          max_tokens: 4096,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Continue the previous JSON output exactly where it stopped. Return only the remaining JSON content without markdown or explanation.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+        });
+
+        const contChoice = cont.choices && cont.choices[0];
+        const contText = contChoice?.message?.content || "";
+        raw = `${raw}\n${contText}`;
+      } catch (err) {
+        console.error("RESUME ANALYSIS CONTINUATION ERROR:", err);
+      }
+    }
 
     const analysis = extractJson(raw);
 
