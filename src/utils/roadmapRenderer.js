@@ -272,6 +272,7 @@ function wrapText(text = "", maxChars = 42) {
   return lines.length ? lines : [String(text)];
 }
 
+<<<<<<< HEAD
 function countWrappedLines(items, maxChars) {
   return items.reduce((total, item) => total + wrapText(String(item), maxChars).length, 0);
 }
@@ -313,25 +314,146 @@ function renderSkillRows(skills, x, y, width, theme) {
       `;
     })
     .join("");
+=======
+function calculateHeroLayout(roadmap) {
+  const summaryText = (roadmap.summary || "").trim();
+  const summaryLines = summaryText ? wrapText(summaryText, 78).slice(0, 3) : [];
+  const heroHeight = summaryLines.length ? 280 + summaryLines.length * 30 + 20 : 260;
+
+  return {
+    summaryLines,
+    heroHeight,
+  };
+}
+
+function calculateCardLayout(phase, cardWidth, cardX, cardY, theme) {
+  const titleText = phase.title || "";
+  const maxTitleChars = cardWidth > 800 ? 60 : 28;
+  const titleLines = wrapText(titleText, maxTitleChars).slice(0, 2);
+  if (titleLines.length === 0) {
+    titleLines.push("Phase");
+  }
+
+  let yCursor = cardY + 28; // Start after top padding
+
+  // Title lines positions
+  const titlePositions = [];
+  titleLines.forEach((line) => {
+    titlePositions.push(yCursor + 22);
+    yCursor += 30; // height of title line + spacing
+  });
+
+  // Skills chips
+  const chips = [];
+  const skills = Array.isArray(phase.skills) ? phase.skills.filter(Boolean) : [];
+  if (skills.length > 0) {
+    yCursor += 12; // gap before skills
+    const maxChipWidth = cardWidth - 56; // 28px padding on left/right
+    const maxLineChars = cardWidth > 800 ? 80 : 45; // safe character wrapping per chip line
+    let cursorX = cardX + 28;
+    let cursorY = yCursor;
+    let rowMaxHeight = 26;
+
+    skills.forEach((skill) => {
+      const lines = wrapText(skill, maxLineChars);
+      const longestLineLength = Math.max(...lines.map((l) => l.length));
+      const chipWidth = Math.min(maxChipWidth, 34 + longestLineLength * 8.2);
+      const chipHeight = 26 + (lines.length - 1) * 18;
+
+      const neededWidth = cursorX === cardX + 28 ? chipWidth : chipWidth + 10;
+      const remainingWidth = maxChipWidth - (cursorX - (cardX + 28));
+
+      if (cursorX > cardX + 28 && (remainingWidth < chipWidth || lines.length > 1)) {
+        cursorY += rowMaxHeight + 10;
+        cursorX = cardX + 28;
+        rowMaxHeight = chipHeight;
+      }
+
+      chips.push({
+        x: cursorX,
+        y: cursorY,
+        width: chipWidth,
+        height: chipHeight,
+        lines: lines,
+      });
+
+      rowMaxHeight = Math.max(rowMaxHeight, chipHeight);
+      cursorX += chipWidth + 10;
+    });
+
+    yCursor = cursorY + rowMaxHeight;
+  }
+
+  // Outcome block
+  const outcomeText = (phase.outcome || "").trim();
+  const maxOutcomeChars = cardWidth > 800 ? 95 : 52;
+  const outcomeLines = outcomeText ? wrapText(outcomeText, maxOutcomeChars).slice(0, 6) : [];
+  const outcomePositions = [];
+
+  if (outcomeLines.length > 0) {
+    yCursor += 14; // gap before outcome text
+    outcomeLines.forEach((line) => {
+      outcomePositions.push(yCursor + 16);
+      yCursor += 24; // height of line + spacing
+    });
+  }
+
+  yCursor += 24; // bottom padding
+
+  const cardHeight = yCursor - cardY;
+
+  return {
+    titleLines,
+    titlePositions,
+    chips,
+    outcomeLines,
+    outcomePositions,
+    cardHeight,
+  };
+}
+
+function getFooterHeight(roadmap, width) {
+  const highlights = Array.isArray(roadmap.highlights) ? roadmap.highlights : [];
+  const nextSteps = Array.isArray(roadmap.nextSteps) ? roadmap.nextSteps : [];
+  const leftWidth = 680;
+  const rightWidth = 680;
+
+  const getListLinesCount = (list, cardWidth) => {
+    const maxWidth = Math.max(28, cardWidth - 48);
+    const lines = list.length
+      ? list.flatMap((item) => wrapText(String(item), Math.max(24, Math.floor(maxWidth / 10))))
+      : ["Not specified"];
+    return Math.min(6, lines.length);
+  };
+
+  const hLines = getListLinesCount(highlights, leftWidth);
+  const nLines = getListLinesCount(nextSteps, rightWidth);
+
+  const hHeight = Math.max(180, 86 + hLines * 24 + 14);
+  const nHeight = Math.max(180, 86 + nLines * 24 + 14);
+
+  return Math.max(hHeight, nHeight);
+>>>>>>> bcb71c0abfc97b5791f7c0fcd28597cf3c727cfa
 }
 
 function getPhaseNodeColor(template, index) {
   return index % 2 === 0 ? template.accent : template.node;
 }
 
-function renderFooterList(items, x, y, width, title, theme) {
+function renderFooterList(items, x, y, width, title, theme, cardHeight) {
   const list = Array.isArray(items) ? items.filter(Boolean) : [];
   const maxWidth = Math.max(28, width - 48);
   const lines = list.length
     ? list.flatMap((item) => wrapText(String(item), Math.max(24, Math.floor(maxWidth / 10))))
     : ["Not specified"];
 
+  const displayLines = lines.slice(0, 6);
+
   return `
     <g transform="translate(${x}, ${y})">
-      <rect x="0" y="0" width="${width}" height="220" rx="28" fill="${theme.cardFill}" stroke="${theme.cardStroke}" stroke-width="1.2" />
+      <rect x="0" y="0" width="${width}" height="${cardHeight}" rx="28" fill="${theme.cardFill}" stroke="${theme.cardStroke}" stroke-width="1.2" />
       <text x="28" y="44" fill="${theme.accent}" font-size="22" font-weight="700" letter-spacing="0.08em">${escapeXml(title.toUpperCase())}</text>
-      ${lines
-        .slice(0, 7)
+      ${displayLines
         .map(
           (line, index) => `
             <text x="28" y="${86 + index * 24}" fill="${theme.text}" font-size="19" font-weight="500">${escapeXml(line)}</text>
@@ -342,14 +464,14 @@ function renderFooterList(items, x, y, width, title, theme) {
   `;
 }
 
-function renderHero(roadmap, theme, width) {
+function renderHero(roadmap, theme, width, heroLayout) {
+  const { summaryLines, heroHeight } = heroLayout;
   const title = escapeXml(roadmap.title || "Roadmap");
   const duration = escapeXml(roadmap.duration || "Roadmap");
-  const summaryLines = wrapText(roadmap.summary || "", 78).slice(0, 3);
 
   return `
     <g>
-      <rect x="0" y="0" width="${width}" height="280" fill="url(#bgGlow)" opacity="0.88" />
+      <rect x="0" y="0" width="${width}" height="${heroHeight}" fill="url(#bgGlow)" opacity="0.88" />
       <circle cx="1360" cy="90" r="170" fill="url(#accentGlow)" opacity="0.8" />
       <circle cx="118" cy="108" r="120" fill="url(#softGlow)" opacity="0.9" />
       <text x="90" y="102" fill="${theme.accent}" font-size="26" font-weight="700" letter-spacing="0.22em">PLACEMENTGPT ROADMAP</text>
@@ -359,7 +481,7 @@ function renderHero(roadmap, theme, width) {
       ${summaryLines
         .map(
           (line, index) => `
-            <text x="90" y="${312 + index * 30}" fill="${theme.muted}" font-size="22" font-weight="400">${escapeXml(line)}</text>
+            <text x="90" y="${282 + index * 30}" fill="${theme.muted}" font-size="22" font-weight="400">${escapeXml(line)}</text>
           `
         )
         .join("")}
@@ -367,6 +489,7 @@ function renderHero(roadmap, theme, width) {
   `;
 }
 
+<<<<<<< HEAD
 function renderPhaseCard(phase, index, theme, layout, width, topY) {
   const cardWidth = layout === "stacked" ? 1260 : 620;
   const titleLines = wrapText(phase.title || `Phase ${index + 1}`, 28).slice(0, 2);
@@ -384,23 +507,82 @@ function renderPhaseCard(phase, index, theme, layout, width, topY) {
         : isLeft
           ? 90
           : width - 90 - cardWidth;
+=======
+function renderPhaseCard(cardLayout, theme, layout, width) {
+  const {
+    phase,
+    index,
+    cardX,
+    cardY,
+    cardWidth,
+    cardHeight,
+    titleLines,
+    titlePositions,
+    chips,
+    outcomeLines,
+    outcomePositions,
+  } = cardLayout;
+
+  const isLeft = layout === "center" ? index % 2 === 0 : true;
+>>>>>>> bcb71c0abfc97b5791f7c0fcd28597cf3c727cfa
   const nodeX = layout === "stacked" ? 150 : layout === "leftRail" ? 150 : width / 2;
-  const cardY = topY;
   const cardCenterY = cardY + cardHeight / 2;
   const nodeColor = getPhaseNodeColor(theme, index);
+<<<<<<< HEAD
   const titleY = cardY + 56;
   const skillsTitleY = cardY + 118;
   const skillsStartY = cardY + 148;
   const outcomeTitleY = skillsStartY + skillBlockHeight + 20;
   const outcomeStartY = outcomeTitleY + 30;
+=======
+
+  // Connection curve/line
+  const targetX = cardX > nodeX ? cardX : cardX + cardWidth;
+  const shift = targetX - nodeX;
+>>>>>>> bcb71c0abfc97b5791f7c0fcd28597cf3c727cfa
 
   const connector = layout === "stacked"
     ? `
       <line x1="${nodeX}" y1="${cardY + 14}" x2="${nodeX}" y2="${cardY + cardHeight - 14}" stroke="${theme.line}" stroke-width="4" stroke-dasharray="8 10" />
     `
     : `
-      <path d="M ${nodeX} ${cardCenterY} C ${nodeX + (isLeft ? -88 : 88)} ${cardCenterY - 24}, ${cardX + (isLeft ? cardWidth : 0)} ${cardCenterY - 24}, ${cardX + (isLeft ? cardWidth : 0)} ${cardCenterY}" fill="none" stroke="${theme.line}" stroke-width="4" />
+      <path d="M ${nodeX} ${cardCenterY} C ${nodeX + shift * 0.4} ${cardCenterY - 15}, ${targetX - shift * 0.4} ${cardCenterY - 15}, ${targetX} ${cardCenterY}" fill="none" stroke="${theme.line}" stroke-width="4" />
     `;
+
+  const titleBlock = titleLines
+    .map(
+      (line, idx) => `
+        <text x="${cardX + 28}" y="${titlePositions[idx]}" fill="${theme.text}" font-size="25" font-weight="700">${escapeXml(idx === 0 ? (phase.emoji || "✨") + " " + line : line)}</text>
+      `
+    )
+    .join("");
+
+  const chipsBlock = chips
+    .map((chip) => {
+      const textLinesBlock = chip.lines
+        .map(
+          (line, idx) => `
+            <tspan x="${chip.x + 14}" dy="${idx === 0 ? 0 : 18}">${escapeXml(line)}</tspan>
+          `
+        )
+        .join("");
+
+      return `
+        <g>
+          <rect x="${chip.x}" y="${chip.y}" width="${chip.width}" height="${chip.height}" rx="13" fill="${theme.accentSoft}" stroke="${theme.cardStroke}" />
+          <text x="${chip.x + 14}" y="${chip.y + 18}" fill="${theme.accentTwo}" font-size="15" font-weight="600">${textLinesBlock}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  const outcomeBlock = outcomeLines
+    .map(
+      (line, idx) => `
+        <text x="${cardX + 28}" y="${outcomePositions[idx]}" fill="${theme.muted}" font-size="18" font-weight="400">${escapeXml(line)}</text>
+      `
+    )
+    .join("");
 
   return `
     <g>
@@ -409,6 +591,7 @@ function renderPhaseCard(phase, index, theme, layout, width, topY) {
       <circle cx="${nodeX}" cy="${cardCenterY}" r="11" fill="${nodeColor}" />
       <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="${cardHeight}" rx="30" fill="${theme.cardFill}" stroke="${theme.cardStroke}" stroke-width="1.2" />
       <rect x="${cardX}" y="${cardY}" width="${cardWidth}" height="8" rx="30" fill="url(#accentLine)" opacity="0.85" />
+<<<<<<< HEAD
       <text x="${cardX + 28}" y="${titleY}" fill="${theme.text}" font-size="24" font-weight="700">${escapeXml(phase.emoji || "✨")} ${escapeXml(titleLines[0] || "Phase")}</text>
       ${titleLines[1] ? `<text x="${cardX + 28}" y="${titleY + 30}" fill="${theme.text}" font-size="24" font-weight="700">${escapeXml(titleLines[1])}</text>` : ""}
 
@@ -425,40 +608,36 @@ function renderPhaseCard(phase, index, theme, layout, width, topY) {
         18,
         400
       )}
+=======
+      ${titleBlock}
+      ${chipsBlock}
+      ${outcomeBlock}
+>>>>>>> bcb71c0abfc97b5791f7c0fcd28597cf3c727cfa
     </g>
   `;
 }
 
-function renderRoadmapGrid(roadmap, theme, width, startY) {
-  const phases = Array.isArray(roadmap.phases) ? roadmap.phases : [];
+function renderRoadmapGrid(cardLayouts, theme, width, lineTop, lineBottom) {
   const layout = theme.layout;
+<<<<<<< HEAD
   const phaseSpacing = layout === "stacked" ? 320 : 310;
   const topY = startY;
   const totalHeight = topY + phases.length * phaseSpacing + 330;
+=======
+>>>>>>> bcb71c0abfc97b5791f7c0fcd28597cf3c727cfa
   const lineX = layout === "center" ? width / 2 : 150;
-  const lineTop = topY - 22;
-  const lineBottom = totalHeight - 300;
 
   return `
     <g>
       <line x1="${lineX}" y1="${lineTop}" x2="${lineX}" y2="${lineBottom}" stroke="${theme.line}" stroke-width="5" stroke-linecap="round" stroke-dasharray="10 12" opacity="0.9" />
-      ${phases
-        .map((phase, index) =>
-          renderPhaseCard(
-            phase,
-            index,
-            theme,
-            layout,
-            width,
-            topY + index * phaseSpacing
-          )
-        )
+      ${cardLayouts
+        .map((cardLayout) => renderPhaseCard(cardLayout, theme, layout, width))
         .join("")}
     </g>
   `;
 }
 
-function renderFooter(roadmap, theme, width, startY) {
+function renderFooter(roadmap, theme, width, startY, footerHeight) {
   const highlights = Array.isArray(roadmap.highlights) ? roadmap.highlights : [];
   const nextSteps = Array.isArray(roadmap.nextSteps) ? roadmap.nextSteps : [];
   const leftWidth = 680;
@@ -467,8 +646,8 @@ function renderFooter(roadmap, theme, width, startY) {
 
   return `
     <g>
-      ${renderFooterList(highlights, 90, footerY, leftWidth, "Highlights", theme)}
-      ${renderFooterList(nextSteps, width - 90 - rightWidth, footerY, rightWidth, "Next Steps", theme)}
+      ${renderFooterList(highlights, 90, footerY, leftWidth, "Highlights", theme, footerHeight)}
+      ${renderFooterList(nextSteps, width - 90 - rightWidth, footerY, rightWidth, "Next Steps", theme, footerHeight)}
     </g>
   `;
 }
@@ -478,13 +657,68 @@ export function buildRoadmapSvg(roadmap, templateId) {
   const width = 1600;
   const phases = Array.isArray(roadmap?.phases) ? roadmap.phases : [];
   const layout = theme.layout;
+<<<<<<< HEAD
   const phaseSpacing = layout === "stacked" ? 320 : 310;
   const footerStart = 340 + phases.length * phaseSpacing;
   const height = Math.max(1400, footerStart + 390);
+=======
+
+  // 1. Calculate Hero Layout
+  const heroLayout = calculateHeroLayout(roadmap || {});
+  const phasesStartY = heroLayout.heroHeight + 30;
+
+  // 2. Calculate Layout of all phase cards
+  let currentY = phasesStartY;
+  const cardGap = 40;
+
+  const cardLayouts = phases.map((phase, index) => {
+    const isLeft = layout === "center" ? index % 2 === 0 : true;
+    const cardWidth = layout === "stacked" ? 1260 : 620;
+    const cardX =
+      layout === "stacked"
+        ? 170
+        : layout === "leftRail"
+          ? 220
+          : isLeft
+            ? 90
+            : width - 90 - cardWidth;
+
+    const layoutDetails = calculateCardLayout(phase, cardWidth, cardX, currentY, theme);
+    const topY = currentY;
+    currentY += layoutDetails.cardHeight + cardGap;
+    return {
+      ...layoutDetails,
+      cardX,
+      cardY: topY,
+      cardWidth,
+      index,
+      phase,
+    };
+  });
+
+  // 3. Calculate Footer Layout
+  const footerStart = currentY + 10;
+  const footerHeight = getFooterHeight(roadmap || {}, width);
+
+  // 4. Calculate total SVG height
+  const height = Math.max(1000, footerStart + footerHeight + 60);
+
+  // Timeline line boundaries
+  const firstCard = cardLayouts[0];
+  const lastCard = cardLayouts[cardLayouts.length - 1];
+  const lineTop = firstCard ? (firstCard.cardY + firstCard.cardHeight / 2 - 20) : phasesStartY;
+  const lineBottom = lastCard ? (lastCard.cardY + lastCard.cardHeight / 2 + 20) : phasesStartY;
+>>>>>>> bcb71c0abfc97b5791f7c0fcd28597cf3c727cfa
 
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMin meet" role="img" aria-label="${escapeXml(roadmap?.title || "Roadmap infographic")}" style="width:100%;height:auto;display:block;">
       <defs>
+        <style type="text/css">
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap');
+          text {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          }
+        </style>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="${theme.background[0]}" />
           <stop offset="55%" stop-color="${theme.background[1]}" />
@@ -516,11 +750,11 @@ export function buildRoadmapSvg(roadmap, templateId) {
       </defs>
       <rect width="${width}" height="${height}" fill="url(#bg)" />
       <rect width="${width}" height="${height}" fill="url(#grid)" opacity="0.5" />
-      ${renderHero(roadmap || {}, theme, width)}
-      ${phases.length ? renderRoadmapGrid(roadmap || {}, theme, width, 390) : `
-        <text x="90" y="420" fill="${theme.text}" font-size="26" font-weight="700">No roadmap phases were generated.</text>
+      ${renderHero(roadmap || {}, theme, width, heroLayout)}
+      ${phases.length ? renderRoadmapGrid(cardLayouts, theme, width, lineTop, lineBottom) : `
+        <text x="90" y="${phasesStartY + 30}" fill="${theme.text}" font-size="26" font-weight="700">No roadmap phases were generated.</text>
       `}
-      ${renderFooter(roadmap || {}, theme, width, footerStart)}
+      ${renderFooter(roadmap || {}, theme, width, footerStart, footerHeight)}
     </svg>
   `;
 }
