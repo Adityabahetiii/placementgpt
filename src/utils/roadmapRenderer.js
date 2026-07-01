@@ -306,42 +306,45 @@ function calculateCardLayout(phase, cardWidth, cardX, cardY, theme) {
   if (skills.length > 0) {
     yCursor += 12; // gap before skills
     const maxChipWidth = cardWidth - 56; // 28px padding on left/right
+    const maxLineChars = cardWidth > 800 ? 80 : 45; // safe character wrapping per chip line
     let cursorX = cardX + 28;
     let cursorY = yCursor;
-    let usedWidth = 0;
-    let row = 0;
+    let rowMaxHeight = 26;
 
     skills.forEach((skill) => {
-      // Clean and truncate skill if too long to prevent wrapping issues
-      const cleanSkill = skill.length > 55 ? skill.slice(0, 52) + "..." : skill;
-      const chipWidth = Math.min(maxChipWidth, 34 + cleanSkill.length * 8.2);
-      const neededWidth = usedWidth === 0 ? chipWidth : chipWidth + 10;
+      const lines = wrapText(skill, maxLineChars);
+      const longestLineLength = Math.max(...lines.map((l) => l.length));
+      const chipWidth = Math.min(maxChipWidth, 34 + longestLineLength * 8.2);
+      const chipHeight = 26 + (lines.length - 1) * 18;
 
-      if (usedWidth > 0 && usedWidth + neededWidth > maxChipWidth) {
-        row += 1;
-        usedWidth = 0;
+      const neededWidth = cursorX === cardX + 28 ? chipWidth : chipWidth + 10;
+      const remainingWidth = maxChipWidth - (cursorX - (cardX + 28));
+
+      if (cursorX > cardX + 28 && (remainingWidth < chipWidth || lines.length > 1)) {
+        cursorY += rowMaxHeight + 10;
         cursorX = cardX + 28;
-        cursorY = yCursor + row * 36;
+        rowMaxHeight = chipHeight;
       }
 
       chips.push({
         x: cursorX,
         y: cursorY,
         width: chipWidth,
-        label: cleanSkill,
+        height: chipHeight,
+        lines: lines,
       });
 
+      rowMaxHeight = Math.max(rowMaxHeight, chipHeight);
       cursorX += chipWidth + 10;
-      usedWidth = usedWidth === 0 ? chipWidth : usedWidth + neededWidth;
     });
 
-    yCursor += (row + 1) * 36; // add height of chip rows
+    yCursor = cursorY + rowMaxHeight;
   }
 
   // Outcome block
   const outcomeText = (phase.outcome || "").trim();
   const maxOutcomeChars = cardWidth > 800 ? 95 : 52;
-  const outcomeLines = outcomeText ? wrapText(outcomeText, maxOutcomeChars).slice(0, 3) : [];
+  const outcomeLines = outcomeText ? wrapText(outcomeText, maxOutcomeChars).slice(0, 6) : [];
   const outcomePositions = [];
 
   if (outcomeLines.length > 0) {
@@ -483,14 +486,22 @@ function renderPhaseCard(cardLayout, theme, layout, width) {
     .join("");
 
   const chipsBlock = chips
-    .map(
-      (chip) => `
+    .map((chip) => {
+      const textLinesBlock = chip.lines
+        .map(
+          (line, idx) => `
+            <tspan x="${chip.x + 14}" dy="${idx === 0 ? 0 : 18}">${escapeXml(line)}</tspan>
+          `
+        )
+        .join("");
+
+      return `
         <g>
-          <rect x="${chip.x}" y="${chip.y}" width="${chip.width}" height="26" rx="13" fill="${theme.accentSoft}" stroke="${theme.cardStroke}" />
-          <text x="${chip.x + 14}" y="${chip.y + 18}" fill="${theme.accentTwo}" font-size="15" font-weight="600">${escapeXml(chip.label)}</text>
+          <rect x="${chip.x}" y="${chip.y}" width="${chip.width}" height="${chip.height}" rx="13" fill="${theme.accentSoft}" stroke="${theme.cardStroke}" />
+          <text x="${chip.x + 14}" y="${chip.y + 18}" fill="${theme.accentTwo}" font-size="15" font-weight="600">${textLinesBlock}</text>
         </g>
-      `
-    )
+      `;
+    })
     .join("");
 
   const outcomeBlock = outcomeLines
