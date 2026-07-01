@@ -606,8 +606,6 @@ ${resumeText}
       });
     }
 
-    analysis.extractedText = resumeText;
-
     res.json(analysis);
   } catch (err) {
     console.error("Resume Analysis Error:", err);
