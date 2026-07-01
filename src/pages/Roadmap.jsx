@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import RoadmapSVG from "../components/RoadmapSVG";
 import {
   ROADMAP_TEMPLATES,
   buildRoadmapSvg,
+  downloadPdfFromSvg,
+  downloadPngFromSvg,
   downloadSvgFile,
   getRandomRoadmapTemplate,
   slugifyRoadmapFileName,
@@ -14,7 +14,6 @@ import {
 const API_URL = import.meta.env.VITE_API_URL;
 
 function RoadmapArtifact({ item }) {
-  const cardRef = useRef(null);
   const [templateId, setTemplateId] = useState(item.templateId);
   const template = ROADMAP_TEMPLATES.find((entry) => entry.id === templateId) ||
     ROADMAP_TEMPLATES[0];
@@ -30,44 +29,13 @@ function RoadmapArtifact({ item }) {
   };
 
   const exportPng = async () => {
-    if (!cardRef.current) return;
-
-    const canvas = await html2canvas(cardRef.current, {
-      backgroundColor: null,
-      scale: 2,
-      useCORS: true,
-    });
-
-    const link = document.createElement("a");
-    link.href = canvas.toDataURL("image/png");
-    link.download = `${fileBaseName}.png`;
-    link.click();
+    const svg = buildRoadmapSvg(item.roadmap, templateId);
+    await downloadPngFromSvg(svg, `${fileBaseName}.png`);
   };
 
   const exportPdf = async () => {
-    if (!cardRef.current) return;
-
-    const canvas = await html2canvas(cardRef.current, {
-      backgroundColor: null,
-      scale: 2,
-      useCORS: true,
-    });
-
-    const pdf = new jsPDF({
-      orientation: canvas.width > canvas.height ? "landscape" : "portrait",
-      unit: "px",
-      format: [canvas.width, canvas.height],
-    });
-
-    pdf.addImage(
-      canvas.toDataURL("image/png"),
-      "PNG",
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-    pdf.save(`${fileBaseName}.pdf`);
+    const svg = buildRoadmapSvg(item.roadmap, templateId);
+    await downloadPdfFromSvg(svg, `${fileBaseName}.pdf`);
   };
 
   return (
@@ -101,7 +69,7 @@ function RoadmapArtifact({ item }) {
         </div>
       </div>
 
-      <div className="mt-5" ref={cardRef}>
+      <div className="mt-5">
         <RoadmapSVG roadmap={item.roadmap} templateId={templateId} />
       </div>
 

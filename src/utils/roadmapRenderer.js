@@ -1,3 +1,5 @@
+import jsPDF from "jspdf";
+
 const TEMPLATE_MAP = {
   cyberNeon: {
     id: "cyberNeon",
@@ -119,6 +121,108 @@ export function downloadSvgFile(svgContent, fileName) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function svgToBlob(svgContent) {
+  return new Blob([svgContent], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+}
+
+export async function downloadPngFromSvg(svgContent, fileName) {
+  const blob = svgToBlob(svgContent);
+  const url = URL.createObjectURL(blob);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+
+    const svgDoc = new DOMParser().parseFromString(svgContent, "image/svg+xml");
+    const svgElement = svgDoc.documentElement;
+    const width = Number(svgElement.getAttribute("width")) || 1600;
+    const height = Number(svgElement.getAttribute("height")) || 1200;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Canvas context unavailable.");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+
+    await new Promise((resolve) => {
+      canvas.toBlob((canvasBlob) => {
+        if (!canvasBlob) {
+          resolve(null);
+          return;
+        }
+
+        const downloadUrl = URL.createObjectURL(canvasBlob);
+        const link = document.createElement("a");
+
+        link.href = downloadUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(downloadUrl);
+        resolve(null);
+      }, "image/png");
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function downloadPdfFromSvg(svgContent, fileName) {
+  const blob = svgToBlob(svgContent);
+  const url = URL.createObjectURL(blob);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+
+    const svgDoc = new DOMParser().parseFromString(svgContent, "image/svg+xml");
+    const svgElement = svgDoc.documentElement;
+    const width = Number(svgElement.getAttribute("width")) || 1600;
+    const height = Number(svgElement.getAttribute("height")) || 1200;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Canvas context unavailable.");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+
+    const pngDataUrl = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({
+      orientation: width > height ? "landscape" : "portrait",
+      unit: "px",
+      format: [width, height],
+    });
+
+    pdf.addImage(pngDataUrl, "PNG", 0, 0, width, height);
+    pdf.save(fileName);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 function escapeXml(text = "") {
@@ -390,7 +494,7 @@ export function buildRoadmapSvg(roadmap, templateId) {
   const bgGradient = `${theme.background[0]}, ${theme.background[1]}, ${theme.background[2]}`;
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(roadmap?.title || "Roadmap infographic")}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMin meet" role="img" aria-label="${escapeXml(roadmap?.title || "Roadmap infographic")}" style="width:100%;height:auto;display:block;">
       <defs>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="${theme.background[0]}" />
