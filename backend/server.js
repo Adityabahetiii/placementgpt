@@ -4,14 +4,11 @@ const express = require("express");
 const cors = require("cors");
 const Groq = require("groq-sdk");
 const app = express();
-const axios = require("axios");
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
-const { InferenceClient } = require("@huggingface/inference");
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
-const hf = new InferenceClient(process.env.HF_API_KEY);
 const MODEL = "llama-3.1-8b-instant";
 
 /* -------------------- JSON HELPERS -------------------- */
@@ -112,35 +109,6 @@ function getLevel(text = "") {
   return "";
 }
 
-function wantsImage(text = "") {
-  const lower = text.toLowerCase();
-
-  return [
-    "generate image",
-    "generate an image",
-    "make an image",
-    "create an image",
-    "visual roadmap",
-    "roadmap image",
-    "infographic",
-    "diagram",
-  ].some((word) => lower.includes(word));
-}
-
-function saysNoToImage(text = "") {
-  const lower = text.toLowerCase().trim();
-
-  return (
-    lower === "no" ||
-    lower === "nope" ||
-    lower.includes("no image") ||
-    lower.includes("without image") ||
-    lower.includes("don't want image") ||
-    lower.includes("dont want image") ||
-    lower.includes("not visual")
-  );
-}
-
 /*
   This function is the important fix.
 
@@ -228,8 +196,6 @@ function getConversationDetails(messages = []) {
   let goal = "";
   let duration = "";
   let level = "";
-  let imageRequested = false;
-  let imageRejected = false;
 
   /*
     Important:
@@ -254,20 +220,12 @@ function getConversationDetails(messages = []) {
       level = getLevel(text);
     }
 
-    if (wantsImage(text)) {
-      imageRequested = true;
-    }
-
-    if (saysNoToImage(text)) {
-      imageRejected = true;
-    }
   }
 
   return {
     goal,
     duration,
     level,
-    wantsImage: imageRequested && !imageRejected,
   };
 }
 
@@ -347,7 +305,7 @@ app.post("/roadmap-chat", async (req, res) => {
     }
 
     return res.json({
-      type: details.wantsImage ? "image" : "roadmap",
+      type: "roadmap",
       reply: `Great — I will create a ${details.duration} roadmap for ${details.goal} at ${details.level} level.`,
       goal: details.goal,
       duration: details.duration,
@@ -377,7 +335,7 @@ app.post("/generate-roadmap", async (req, res) => {
     const completion = await groq.chat.completions.create({
       model: MODEL,
       temperature: 0.35,
-      max_tokens: 1800,
+      max_tokens: 2200,
       messages: [
         {
           role: "system",
@@ -392,26 +350,26 @@ For example:
 - If goal is Video Editor, create Video Editing roadmap.
 - If goal is Blender, create Blender learning roadmap.
 
-Return ONLY valid JSON. No markdown or code fences.
+Return ONLY valid JSON. No markdown or code fences. Do not add explanations.
 
 Use exactly this structure:
 {
   "title": "string",
-  "overview": "string",
+  "duration": "string",
+  "summary": "string",
   "phases": [
     {
       "title": "string",
-      "duration": "string",
-      "topics": ["string"],
-      "tasks": ["string"],
-      "project": "string"
+      "emoji": "string",
+      "skills": ["string"],
+      "outcome": "string"
     }
   ],
-  "interviewPreparation": ["string"],
-  "finalAdvice": "string"
+  "highlights": ["string"],
+  "nextSteps": ["string"]
 }
 
-Create 3 or 4 phases. Keep tasks short and practical.
+Create 4 to 6 phases. Each phase should represent a logical milestone. Keep the skills short, practical, and specific.
 `,
         },
         {
@@ -426,11 +384,35 @@ Create 3 or 4 phases. Keep tasks short and practical.
 
     const roadmap = extractJson(raw);
 
-    if (!roadmap) {
+    if (!roadmap || !roadmap.title || !Array.isArray(roadmap.phases)) {
       return res.status(500).json({
         error: "Could not process the roadmap. Please try again.",
       });
     }
+
+    if (!roadmap.duration) roadmap.duration = duration;
+    if (!roadmap.summary) {
+      roadmap.summary = `A structured ${duration} roadmap for ${goal} at ${level} level.`;
+    }
+
+    roadmap.phases = roadmap.phases
+      .filter((phase) => phase && phase.title && Array.isArray(phase.skills))
+      .map((phase, index) => ({
+        title: String(phase.title),
+        emoji: String(phase.emoji || ["🚀", "📚", "🧠", "🛠️", "🎯", "🏁"][index % 6]),
+        skills: phase.skills.map((skill) => String(skill)).filter(Boolean),
+        outcome: String(
+          phase.outcome || `Milestone ${index + 1} for ${goal}`
+        ),
+      }));
+
+    roadmap.highlights = Array.isArray(roadmap.highlights)
+      ? roadmap.highlights.map((item) => String(item)).filter(Boolean)
+      : [];
+
+    roadmap.nextSteps = Array.isArray(roadmap.nextSteps)
+      ? roadmap.nextSteps.map((item) => String(item)).filter(Boolean)
+      : [];
 
     return res.json(roadmap);
   } catch (error) {
@@ -438,53 +420,6 @@ Create 3 or 4 phases. Keep tasks short and practical.
 
     return res.status(500).json({
       error: "Failed to generate roadmap.",
-    });
-  }
-});
-app.post("/generate-roadmap-image", async (req, res) => {
-  try {
-    const { goal, duration, level } = req.body;
-
-    const prompt = `
-Create a modern professional career roadmap infographic.
-
-Career: ${goal}
-Duration: ${duration}
-Level: ${level}
-
-Requirements:
-- Dark navy background
-- Blue glowing timeline
-- Modern UI design
-- Vertical infographic
-- Professional icons
-- Learning milestones
-- Career progression
-- High quality
-- Clean typography
-- No watermark
-`;
-
-    const image = await hf.textToImage({
-      provider: "nscale",
-      model: "black-forest-labs/FLUX.1-schnell",
-      inputs: prompt,
-      parameters: {
-        num_inference_steps: 6,
-      },
-    });
-
-    const buffer = Buffer.from(await image.arrayBuffer());
-
-    res.json({
-      image: `data:image/png;base64,${buffer.toString("base64")}`,
-    });
-  } catch (err) {
-    console.error("HF ERROR:");
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message,
     });
   }
 });
@@ -569,7 +504,7 @@ app.get("/", (req, res) => {
       "/chat",
       "/roadmap-chat",
       "/generate-roadmap",
-      "/generate-roadmap-image",
+      "/analyze-resume"
     ],
   });
 });

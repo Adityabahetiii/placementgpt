@@ -1,29 +1,157 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import RoadmapSVG from "../components/RoadmapSVG";
+import {
+  ROADMAP_TEMPLATES,
+  buildRoadmapSvg,
+  downloadSvgFile,
+  getRandomRoadmapTemplate,
+  slugifyRoadmapFileName,
+} from "../utils/roadmapRenderer";
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+function RoadmapArtifact({ item }) {
+  const cardRef = useRef(null);
+  const [templateId, setTemplateId] = useState(item.templateId);
+  const template = ROADMAP_TEMPLATES.find((entry) => entry.id === templateId) ||
+    ROADMAP_TEMPLATES[0];
+  const fileBaseName = slugifyRoadmapFileName(item.roadmap?.title || item.goal || "roadmap");
+
+  useEffect(() => {
+    setTemplateId(item.templateId);
+  }, [item.templateId]);
+
+  const exportSvg = () => {
+    const svg = buildRoadmapSvg(item.roadmap, templateId);
+    downloadSvgFile(svg, `${fileBaseName}.svg`);
+  };
+
+  const exportPng = async () => {
+    if (!cardRef.current) return;
+
+    const canvas = await html2canvas(cardRef.current, {
+      backgroundColor: null,
+      scale: 2,
+      useCORS: true,
+    });
+
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = `${fileBaseName}.png`;
+    link.click();
+  };
+
+  const exportPdf = async () => {
+    if (!cardRef.current) return;
+
+    const canvas = await html2canvas(cardRef.current, {
+      backgroundColor: null,
+      scale: 2,
+      useCORS: true,
+    });
+
+    const pdf = new jsPDF({
+      orientation: canvas.width > canvas.height ? "landscape" : "portrait",
+      unit: "px",
+      format: [canvas.width, canvas.height],
+    });
+
+    pdf.addImage(
+      canvas.toDataURL("image/png"),
+      "PNG",
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+    pdf.save(`${fileBaseName}.pdf`);
+  };
+
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-slate-800 bg-slate-950/90 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.55)]">
+      {item.text && <p className="mb-4 text-slate-300">{item.text}</p>}
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-cyan-300">
+            {item.roadmap.title}
+          </h2>
+          <p className="mt-2 text-sm text-slate-400">
+            {item.roadmap.duration} roadmap poster · {template.name}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {ROADMAP_TEMPLATES.map((entry) => (
+            <button
+              key={entry.id}
+              onClick={() => setTemplateId(entry.id)}
+              className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                templateId === entry.id
+                  ? "border-cyan-400 bg-cyan-400/15 text-cyan-200"
+                  : "border-slate-700 bg-slate-900 text-slate-300 hover:border-cyan-500 hover:text-cyan-200"
+              }`}
+            >
+              {entry.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5" ref={cardRef}>
+        <RoadmapSVG roadmap={item.roadmap} templateId={templateId} />
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={exportSvg}
+          className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+        >
+          Download SVG
+        </button>
+        <button
+          type="button"
+          onClick={exportPng}
+          className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-500 hover:text-cyan-200"
+        >
+          Download PNG
+        </button>
+        <button
+          type="button"
+          onClick={exportPdf}
+          className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-500 hover:text-cyan-200"
+        >
+          Download PDF
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Roadmap() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
-useEffect(() => {
-  const startFreshChat = () => {
-    setMessages([]);
-    setMessage("");
-    setLoading(false);
-  };
 
-  window.addEventListener("placementgpt_new_chat", startFreshChat);
+  useEffect(() => {
+    const startFreshChat = () => {
+      setMessages([]);
+      setMessage("");
+      setLoading(false);
+    };
 
-  return () => {
-    window.removeEventListener(
-      "placementgpt_new_chat",
-      startFreshChat
-    );
-  };
-}, []);
+    window.addEventListener("placementgpt_new_chat", startFreshChat);
+
+    return () => {
+      window.removeEventListener("placementgpt_new_chat", startFreshChat);
+    };
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -70,6 +198,10 @@ useEffect(() => {
           type: "roadmap",
           text: reply || "",
           roadmap: data,
+          templateId: getRandomRoadmapTemplate().id,
+          goal,
+          duration,
+          level,
         },
       ]);
     } catch (error) {
@@ -80,46 +212,6 @@ useEffect(() => {
       );
     }
   };
-
-  const generateImage = async (goal, duration, level, reply) => {
-  try {
-    const response = await fetch(`${API_URL}/generate-roadmap-image`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        goal,
-        duration,
-        level,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Image generation failed.");
-    }
-
-    setMessages((previous) => [
-      ...previous,
-      {
-        id: Date.now() + Math.random(),
-        sender: "bot",
-        type: "image",
-        text: reply || "",
-        imageUrl: data.image,
-        goal,
-        duration,
-        level,
-      },
-    ]);
-  } catch (error) {
-    console.error(error);
-
-    addBotMessage("❌ Failed to generate image.");
-  }
-};
 
   const sendMessage = async (text = message) => {
     const trimmedText = text.trim();
@@ -167,8 +259,7 @@ useEffect(() => {
 
       if (data.type === "question") {
         addBotMessage(
-          data.reply ||
-            "Could you share one more detail about your goal?"
+          data.reply || "Could you share one more detail about your goal?"
         );
         return;
       }
@@ -180,23 +271,8 @@ useEffect(() => {
         return;
       }
 
-      if (data.type === "image") {
-        generateImage(
-          data.goal,
-          data.duration,
-          data.level,
-          data.reply
-        );
-        return;
-      }
-
       if (data.type === "roadmap") {
-        await generateRoadmap(
-          data.goal,
-          data.duration,
-          data.level,
-          data.reply
-        );
+        await generateRoadmap(data.goal, data.duration, data.level, data.reply);
         return;
       }
 
@@ -215,37 +291,31 @@ useEffect(() => {
     }
   };
 
-  const renderList = (items = []) => {
-    if (!Array.isArray(items) || items.length === 0) {
-      return <li>Not specified.</li>;
-    }
-
-    return items.map((item, index) => (
-      <li key={index}>• {String(item)}</li>
-    ));
-  };
-
   const suggestions = [
     "Give me a 6 month roadmap for Prompt Engineer as a beginner",
     "I want a 3 month roadmap for Data Analyst",
-    "Generate a visual roadmap for Cybersecurity for 6 months as a beginner",
+    "Generate a roadmap for Cybersecurity for 6 months as a beginner",
     "Create a 2 month roadmap to learn Blender as a beginner",
   ];
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-slate-950 text-white">
-    <div className="flex-1 overflow-y-auto p-8">
+    <div className="flex h-full min-h-0 flex-col bg-slate-950 text-white">
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
         {messages.length === 0 && (
-          <div className="mx-auto mt-10 max-w-3xl text-center">
-            <h2 className="mb-4 text-5xl font-bold tracking-tight">
-              🚀 Build Your Learning Roadmap
+          <div className="mx-auto mt-10 max-w-4xl text-center">
+            <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-200">
+              Premium SVG Roadmaps
+            </div>
+
+            <h2 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl">
+              Build your roadmap as a poster, not an AI image.
             </h2>
 
-            <p className="mx-auto mb-10 max-w-2xl text-lg leading-8 text-slate-400">
-              Create detailed learning roadmaps for any career, skill, certification, programming language, exam, or technology. You can also generate beautiful visual roadmap images.
+            <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-400">
+              Create detailed learning roadmaps for any career, skill, certification, programming language, exam, or technology. The roadmap is generated as structured JSON and rendered into a premium infographic.
             </p>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="mt-10 grid gap-4 md:grid-cols-2">
               {suggestions.map((suggestion) => (
                 <button
                   key={suggestion}
@@ -261,139 +331,31 @@ useEffect(() => {
           </div>
         )}
 
-        <div className="mx-auto max-w-4xl space-y-6">
+        <div className="mx-auto max-w-5xl space-y-6">
           {messages.map((item) => (
             <div key={item.id}>
               {item.sender === "user" && (
-                <div className="ml-auto max-w-2xl rounded-2xl rounded-tr-sm bg-blue-600 p-4">
+                <div className="ml-auto max-w-2xl rounded-2xl rounded-tr-sm bg-blue-600 px-4 py-3 text-white shadow-lg shadow-blue-950/30">
                   {item.text}
                 </div>
               )}
 
               {item.sender === "bot" && item.type === "text" && (
-                <div className="max-w-3xl rounded-2xl rounded-tl-sm bg-slate-800 p-4">
+                <div className="max-w-3xl rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-900/90 p-4 shadow-lg shadow-slate-950/30">
                   <div className="prose prose-invert prose-sm max-w-none">
                     <ReactMarkdown>{item.text}</ReactMarkdown>
                   </div>
                 </div>
               )}
 
-              {item.sender === "bot" && item.type === "image" && (
-                <div className="max-w-3xl rounded-2xl border border-slate-800 bg-slate-900 p-5">
-                  {item.text && (
-                    <p className="mb-4 text-slate-300">{item.text}</p>
-                  )}
-
-                  <p className="mb-4 font-semibold text-cyan-300">
-                    {item.duration} {item.goal} Visual Roadmap
-                  </p>
-
-                  <img
-                    src={item.imageUrl}
-                    alt={`${item.goal} visual roadmap`}
-                    className="w-full rounded-xl border border-slate-700"
-                    onError={(event) => {
-                      event.currentTarget.style.display = "none";
-                    }}
-                  />
-                </div>
-              )}
-
               {item.sender === "bot" && item.type === "roadmap" && (
-                <div className="max-w-4xl rounded-2xl border border-slate-800 bg-slate-900 p-6">
-                  {item.text && (
-                    <p className="mb-4 text-slate-300">{item.text}</p>
-                  )}
-
-                  <h2 className="text-2xl font-bold text-cyan-300">
-                    {item.roadmap.title}
-                  </h2>
-
-                  <p className="mt-3 leading-relaxed text-slate-300">
-                    {item.roadmap.overview}
-                  </p>
-
-                  <div className="mt-7 space-y-5">
-                    {item.roadmap.phases.map((phase, index) => (
-                      <div
-                        key={index}
-                        className="rounded-xl border border-slate-700 bg-slate-800 p-5"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <h3 className="text-lg font-semibold">
-                            Phase {index + 1}: {phase.title}
-                          </h3>
-
-                          {phase.duration && (
-                            <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-sm text-cyan-300">
-                              {phase.duration}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="mt-5 space-y-5">
-                          <div>
-                            <h4 className="mb-2 text-sm font-semibold text-cyan-300">
-                              Topics
-                            </h4>
-
-                            <ul className="space-y-1 text-slate-300">
-                              {renderList(phase.topics)}
-                            </ul>
-                          </div>
-
-                          <div>
-                            <h4 className="mb-2 text-sm font-semibold text-cyan-300">
-                              Tasks
-                            </h4>
-
-                            <ul className="space-y-1 text-slate-300">
-                              {renderList(phase.tasks)}
-                            </ul>
-                          </div>
-
-                          {phase.project && (
-                            <div className="rounded-xl border border-cyan-500/30 bg-slate-900 p-4">
-                              <h4 className="mb-1 text-sm font-semibold text-cyan-300">
-                                Practice / Project
-                              </h4>
-
-                              <p className="text-slate-300">
-                                {phase.project}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-7 rounded-xl bg-slate-800 p-5">
-                    <h3 className="mb-3 text-lg font-semibold text-cyan-300">
-                      Preparation Tips
-                    </h3>
-
-                    <ul className="space-y-2 text-slate-300">
-                      {renderList(item.roadmap.interviewPreparation)}
-                    </ul>
-                  </div>
-
-                  <div className="mt-5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-5">
-                    <h3 className="mb-2 font-semibold text-cyan-300">
-                      Final Advice
-                    </h3>
-
-                    <p className="text-slate-200">
-                      {item.roadmap.finalAdvice}
-                    </p>
-                  </div>
-                </div>
+                <RoadmapArtifact item={item} />
               )}
             </div>
           ))}
 
           {loading && (
-            <div className="max-w-fit rounded-2xl bg-slate-800 p-4 animate-pulse">
+            <div className="max-w-fit rounded-2xl border border-slate-800 bg-slate-900 p-4 animate-pulse">
               🤖 PlacementGPT is thinking...
             </div>
           )}
@@ -403,7 +365,7 @@ useEffect(() => {
       </div>
 
       <div className="border-t border-slate-800 bg-slate-950 p-4">
-        <div className="mx-auto flex max-w-4xl gap-3">
+        <div className="mx-auto flex max-w-5xl gap-3">
           <input
             type="text"
             value={message}
@@ -414,13 +376,13 @@ useEffect(() => {
               }
             }}
             placeholder="Example: Give me a 6 month roadmap for Prompt Engineer as a beginner"
-            className="flex-1 rounded-xl bg-slate-800 p-4 text-white outline-none placeholder:text-slate-400"
+            className="flex-1 rounded-xl border border-slate-800 bg-slate-900 px-4 py-4 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/20"
           />
 
           <button
             onClick={() => sendMessage()}
             disabled={loading}
-            className="rounded-xl bg-blue-600 px-6 hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-xl bg-blue-600 px-6 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
           >
             Send
           </button>

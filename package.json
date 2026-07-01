@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@huggingface/inference": "^4.13.21",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.0",
     "axios": "^1.18.1",
