@@ -469,6 +469,27 @@ app.post("/roadmap-chat", async (req, res) => {
 
     console.log("ROADMAP DETAILS:", details);
 
+    if (details.goal) {
+      try {
+        const validationCompletion = await groq.chat.completions.create({
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+          messages: [
+            { role: "system", content: "You are a validation assistant. Is the following text a valid career, real skill, or field of study? Reply ONLY with YES or NO. Text: " + details.goal }
+          ]
+        });
+        const isValid = validationCompletion.choices[0]?.message?.content?.trim().toUpperCase();
+        
+        if (isValid && isValid.includes("NO")) {
+          // If it's not a valid career, clear the goal so the conversational LLM can handle it gracefully.
+          details.goal = ""; 
+        }
+      } catch (err) {
+        console.error("Validation error:", err);
+      }
+    }
+
     if (!details.goal) {
       try {
         const completion = await groq.chat.completions.create({
@@ -481,7 +502,7 @@ app.post("/roadmap-chat", async (req, res) => {
               content: `You are a strict, guided Roadmap Assistant. Your ONLY purpose is to help users generate learning roadmaps. You are NOT a general chatbot. Do NOT have long conversations.
 
 RULES FOR RESPONSES:
-1. If the user greets you (e.g., Hello, Hi, Hey, Good morning):
+1. If the user greets you to start a conversation (e.g., Hello, Hi, Hey, Good morning). Do NOT use this for farewells like bye:
    Reply exactly: "👋 Welcome! Tell me the career or skill you want a roadmap for."
 2. If the user asks who you are or what you can do (e.g., Who are you?, What can you do?):
    Reply exactly: "I generate personalized learning roadmaps for careers and skills. Tell me the career or skill you want to learn."
@@ -504,6 +525,8 @@ RULES FOR RESPONSES:
    Reply exactly: "Sure! Whenever you're ready, tell me the career or skill you want a roadmap for."
 6. If the user provides a valid career or skill (even broadly, like "Data Analyst"), do NOT ask for specializations, areas of interest, or unnecessary follow-up questions. Instead, reply EXACTLY with: "I can help with that! Please tell me just the name of the career or skill you want a roadmap for."
 7. Only ask clarifying questions if the user's request is genuinely ambiguous (e.g. "I want to work in tech", "I need career guidance").
+8. If the user is ending the conversation, saying bye, goodbye, or thanking you (e.g., Bye, Byee, Goodbye, Thanks, Thank you):
+   Reply exactly: "It was nice helping you! Let me know if you need a roadmap for any other career or skill. Have a great day!"
 Always prioritize these exact responses. Do not output markdown other than the bulleted list in rule 3.`
             },
             ...messages
@@ -519,29 +542,6 @@ Always prioritize these exact responses. Do not output markdown other than the b
           type: "question",
           reply: "What would you like a roadmap for?",
         });
-      }
-    }
-
-    if (details.goal) {
-      try {
-        const validationCompletion = await groq.chat.completions.create({
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-          messages: [
-            { role: "system", content: "You are a validation assistant. Is the following text a valid career, real skill, or field of study? Reply ONLY with YES or NO. Text: " + details.goal }
-          ]
-        });
-        const isValid = validationCompletion.choices[0]?.message?.content?.trim().toUpperCase();
-        
-        if (isValid && isValid.includes("NO")) {
-          return res.json({
-            type: "question",
-            reply: `I don't recognize "${details.goal}" as a valid career or skill. Could you please specify a real career or skill? (e.g. Data Analyst, AI Engineer, AWS)`
-          });
-        }
-      } catch (err) {
-        console.error("Validation error:", err);
       }
     }
 

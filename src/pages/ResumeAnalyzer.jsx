@@ -158,8 +158,8 @@ export default function ResumeAnalyzer() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-slate-950 text-white">
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+    <div className="flex h-full min-h-0 flex-1 w-full flex-col bg-slate-950 text-white overflow-hidden">
+      <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8 lg:px-8">
         <div className={`mx-auto flex w-full max-w-4xl flex-col gap-6 lg:gap-8 ${!file && !analysis ? 'h-full justify-center pb-20' : ''}`}>
           <header className="space-y-2 text-center">
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
@@ -188,7 +188,7 @@ export default function ResumeAnalyzer() {
               />
 
               {!file ? (
-                <div className="flex min-h-[108px] items-center gap-5 rounded-xl bg-slate-950/40 border border-slate-800 px-5 py-5 sm:px-6">
+                <div className="flex flex-col sm:flex-row min-h-[108px] items-center gap-5 rounded-xl bg-slate-950/40 border border-slate-800 px-5 py-6 sm:px-6 text-center sm:text-left">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-2xl border border-slate-700">
                     📄
                   </div>
@@ -203,7 +203,7 @@ export default function ResumeAnalyzer() {
                   <button
                     type="button"
                     onClick={openFilePicker}
-                    className="shrink-0 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                    className="w-full sm:w-auto shrink-0 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
                   >
                     Choose Resume PDF
                   </button>

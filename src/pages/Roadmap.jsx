@@ -55,8 +55,10 @@ function RoadmapArtifact({ item }) {
         {/* Theme buttons removed, theme is now handled conversationally */}
       </div>
 
-      <div className="mt-5">
-        <RoadmapSVG roadmap={item.roadmap} templateId={templateId} />
+      <div className="mt-5 w-full pb-2">
+        <div className="w-full">
+          <RoadmapSVG roadmap={item.roadmap} templateId={templateId} />
+        </div>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
@@ -275,31 +277,33 @@ export default function Roadmap() {
   ];
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-slate-950 text-white">
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+    <div className="flex h-full min-h-0 flex-1 w-full flex-col bg-slate-950 text-white">
+      <div className="flex-1 overflow-y-auto px-4 py-2 sm:py-6 sm:px-6 lg:px-8">
         {messages.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center py-4">
+          <div className="flex min-h-full flex-col items-center justify-center py-2 sm:py-4">
             <div className="mx-auto max-w-4xl text-center">
-              <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-200">
+              <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-cyan-200">
               Welcome to the Roadmap Generator
             </div>
 
-            <h2 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl">
+            <h2 className="mt-4 sm:mt-6 text-3xl font-bold tracking-tight sm:text-5xl">
               Plan your career journey with personalized roadmaps.
             </h2>
 
-            <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-400">
+            <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-lg leading-relaxed sm:leading-8 text-slate-400">
               Get a beautifully structured, step-by-step learning plan for any career, skill, or technology. Tell us what you want to learn, your current level, and how much time you have!
             </p>
 
-            <div className="mt-10 grid gap-4 md:grid-cols-2">
-              {suggestions.map((suggestion) => (
+            <div className="mt-6 sm:mt-10 grid gap-3 sm:gap-4 md:grid-cols-2">
+              {suggestions.map((suggestion, index) => (
                 <button
                   key={suggestion}
                   onClick={() => sendMessage(suggestion)}
-                  className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-6 text-left backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400 hover:bg-slate-800 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)]"
+                  className={`group rounded-2xl sm:rounded-3xl border border-slate-800 bg-slate-900/70 p-4 sm:p-6 text-left backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400 hover:bg-slate-800 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] ${
+                    index >= 2 ? "hidden md:block" : "block"
+                  }`}
                 >
-                  <p className="text-lg font-semibold leading-8 text-cyan-300 group-hover:text-cyan-200">
+                  <p className="text-sm sm:text-lg font-semibold leading-relaxed sm:leading-8 text-cyan-300 group-hover:text-cyan-200">
                     {suggestion}
                   </p>
                 </button>
@@ -342,8 +346,8 @@ export default function Roadmap() {
         </div>
       </div>
 
-      <div className="border-t border-slate-800 bg-slate-950 p-4">
-        <div className="mx-auto flex max-w-5xl gap-3">
+      <div className="shrink-0 border-t border-slate-800 bg-slate-950 px-4 py-3 md:px-6 md:py-4">
+        <div className="mx-auto flex max-w-5xl gap-2 md:gap-3">
           <input
             type="text"
             value={message}
