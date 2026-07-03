@@ -451,12 +451,12 @@ app.post("/roadmap-chat", async (req, res) => {
     const lastUserMessage = messages.slice().reverse().find(m => m.role === "user")?.content || "";
     
     // Fast regex detection for theme/color/template change requests
-    const hasThemeKeyword = /\b(theme|color|colour|template|style|look|visual|design|appearance|poster|image|background)\b/i.test(lastUserMessage);
-    const hasChangeKeyword = /\b(change|different|another|other|new|random|update|switch|swap|ugly)\b/i.test(lastUserMessage) || /don'?t like/i.test(lastUserMessage) || /didn'?t like/i.test(lastUserMessage);
+    const hasThemeKeyword = /\b(theme|tehme|color|colour|template|style|look|visual|design|appearance|poster|image|background)\b/i.test(lastUserMessage);
+    const hasChangeKeyword = /\b(change|chnage|chaneg|different|another|other|new|random|update|switch|swap|ugly|bad|weird)\b/i.test(lastUserMessage) || /don'?t like/i.test(lastUserMessage) || /didn'?t like/i.test(lastUserMessage);
     
     // Trigger if both keywords match, OR if they explicitly say they don't like it/want to change it right after generating a roadmap
-    const conversationalChange = /\b(something else|another one|try another|different one|next one|one more)\b/i.test(lastUserMessage);
-    const isThemeChange = (hasThemeKeyword && hasChangeKeyword) || /don'?t like/i.test(lastUserMessage) || /didn'?t like/i.test(lastUserMessage) || lastUserMessage.toLowerCase().trim() === "change" || conversationalChange;
+    const conversationalChange = /\b(something else|another one|try another|different one|next one|one more|do it again|again|once more|change it|chnage it|chaneg it|change the theme|chnage the theme|change tehme|chnage tehme)\b/i.test(lastUserMessage);
+    const isThemeChange = (hasThemeKeyword && hasChangeKeyword) || /don'?t like/i.test(lastUserMessage) || /didn'?t like/i.test(lastUserMessage) || /^(change|chnage|chaneg)(\s+it)?$/i.test(lastUserMessage.trim()) || conversationalChange;
     
     if (isThemeChange) {
       return res.json({

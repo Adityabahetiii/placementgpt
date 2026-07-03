@@ -187,7 +187,7 @@ export default function Roadmap() {
 
     try {
       const apiMessages = updatedMessages
-        .filter((item) => item.type === "text")
+        .filter((item) => item.type === "text" || item.type === "roadmap")
         .map((item) => ({
           role: item.sender === "user" ? "user" : "assistant",
           content: item.text,
