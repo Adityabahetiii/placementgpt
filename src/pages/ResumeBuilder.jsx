@@ -199,22 +199,21 @@ export default function ResumeBuilder() {
     marginBottom: 6,
   };
 
-  const textInputClass = "bg-slate-800 p-3 rounded-lg outline-none text-white placeholder:text-slate-400 border border-slate-700 focus:border-blue-500";
-  const textareaClass = "bg-slate-800 p-3 rounded-lg outline-none text-white placeholder:text-slate-400 border border-slate-700 focus:border-blue-500";
+  const textInputClass = "bg-slate-900/50 p-3 rounded-xl outline-none text-white placeholder:text-slate-500 border border-slate-800 focus:border-cyan-400 focus:bg-slate-900 transition-all";
+  const textareaClass = "bg-slate-900/50 p-3 rounded-xl outline-none text-white placeholder:text-slate-500 border border-slate-800 focus:border-cyan-400 focus:bg-slate-900 transition-all";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-6 md:p-8">
+    <div className="flex h-full min-h-0 flex-col bg-slate-950 text-white">
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
       {step === 0 && (
-        <>
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-10">
-              <h1 className="text-5xl font-bold tracking-tight">📄 Build Your Resume</h1>
-              <p className="mx-auto mt-3 max-w-2xl text-lg text-slate-400">
-                Create an ATS-friendly resume in minutes by completing each step below.
-              </p>
-            </div>
+        <div className="flex h-full flex-col items-center justify-center py-4">
+          <div className="mx-auto max-w-5xl text-center">
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">📄 Build Your Resume</h1>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-400">
+              Create an ATS-friendly resume in minutes by completing each step below.
+            </p>
 
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="mt-10 grid md:grid-cols-3 gap-6 text-left">
               {[
                 {
                   title: "ATS Friendly",
@@ -236,29 +235,31 @@ export default function ResumeBuilder() {
                   key={item.title}
                   type="button"
                   onClick={() => setTemplate(item.title)}
-                  className={`text-left cursor-pointer rounded-2xl border p-6 transition-all hover:scale-[1.02] ${
+                  className={`group relative flex flex-col items-start gap-2 rounded-2xl border p-6 text-left transition-all hover:scale-[1.02] ${
                     template === item.title
-                      ? "border-blue-500 bg-slate-800"
-                      : "border-slate-700 bg-slate-900"
+                      ? "border-cyan-400 bg-slate-900"
+                      : "border-slate-800 bg-slate-900/50 hover:border-cyan-400 hover:bg-slate-900"
                   }`}
                 >
-                  <div className="text-4xl mb-4">{item.icon}</div>
-                  <h2 className="text-xl font-semibold mb-2">{item.title}</h2>
-                  <p className="text-slate-400 text-sm">{item.description}</p>
+                  <div className="text-4xl mb-2">{item.icon}</div>
+                  <h2 className="text-xl font-semibold mb-1 group-hover:text-cyan-200">{item.title}</h2>
+                  <p className="text-slate-400 text-sm leading-relaxed">{item.description}</p>
                 </button>
               ))}
             </div>
 
-            <button
-              type="button"
-              disabled={!template}
-              onClick={() => setStep(1)}
-              className="mt-10 bg-blue-600 px-8 py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Continue →
-            </button>
+            <div className="mt-10">
+              <button
+                type="button"
+                disabled={!template}
+                onClick={() => setStep(1)}
+                className="bg-blue-600 px-8 py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue →
+              </button>
+            </div>
           </div>
-        </>
+        </div>
       )}
 
       {step === 1 && (
@@ -825,6 +826,7 @@ export default function ResumeBuilder() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

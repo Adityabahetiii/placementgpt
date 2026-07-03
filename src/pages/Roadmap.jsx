@@ -11,7 +11,7 @@ import {
   slugifyRoadmapFileName,
 } from "../utils/roadmapRenderer";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function RoadmapArtifact({ item }) {
   const [templateId, setTemplateId] = useState(item.templateId);
@@ -48,25 +48,11 @@ function RoadmapArtifact({ item }) {
             {item.roadmap.title}
           </h2>
           <p className="mt-2 text-sm text-slate-400">
-            {item.roadmap.duration} roadmap poster · {template.name}
+            {item.roadmap.duration} roadmap poster
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {ROADMAP_TEMPLATES.map((entry) => (
-            <button
-              key={entry.id}
-              onClick={() => setTemplateId(entry.id)}
-              className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                templateId === entry.id
-                  ? "border-cyan-400 bg-cyan-400/15 text-cyan-200"
-                  : "border-slate-700 bg-slate-900 text-slate-300 hover:border-cyan-500 hover:text-cyan-200"
-              }`}
-            >
-              {entry.name}
-            </button>
-          ))}
-        </div>
+        {/* Theme buttons removed, theme is now handled conversationally */}
       </div>
 
       <div className="mt-5">
@@ -232,6 +218,28 @@ export default function Roadmap() {
         return;
       }
 
+      if (data.type === "change_theme") {
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          for (let i = newMessages.length - 1; i >= 0; i--) {
+            if (newMessages[i].type === "roadmap") {
+              const currentTemplate = newMessages[i].templateId;
+              let newTemplate = getRandomRoadmapTemplate().id;
+              // Ensure we actually pick a new random theme
+              while (newTemplate === currentTemplate) {
+                newTemplate = getRandomRoadmapTemplate().id;
+              }
+              newMessages[i] = { ...newMessages[i], templateId: newTemplate };
+              break;
+            }
+          }
+          return newMessages;
+        });
+        
+        addBotMessage(data.reply || "I've applied a fresh new look to your roadmap!");
+        return;
+      }
+
       if (!data.goal || !data.duration || !data.level) {
         addBotMessage(
           "I need one more detail before creating your roadmap. What is your current level and how much time do you have?"
@@ -260,27 +268,28 @@ export default function Roadmap() {
   };
 
   const suggestions = [
-    "Give me a 6 month roadmap for Prompt Engineer as a beginner",
-    "I want a 3 month roadmap for Data Analyst",
-    "Generate a roadmap for Cybersecurity for 6 months as a beginner",
-    "Create a 2 month roadmap to learn Blender as a beginner",
+    "Give me a 6 month roadmap for Full Stack Web Development",
+    "I want a 3 month roadmap to learn Data Science",
+    "Create a 4 month roadmap for Cloud Computing (AWS)",
+    "Generate a 2 month roadmap for UI/UX Design",
   ];
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-slate-950 text-white">
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
         {messages.length === 0 && (
-          <div className="mx-auto mt-10 max-w-4xl text-center">
-            <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-200">
-              Premium SVG Roadmaps
+          <div className="flex h-full flex-col items-center justify-center py-4">
+            <div className="mx-auto max-w-4xl text-center">
+              <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-200">
+              Welcome to the Roadmap Generator
             </div>
 
             <h2 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl">
-              Build your roadmap as a poster, not an AI image.
+              Plan your career journey with personalized roadmaps.
             </h2>
 
             <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-400">
-              Create detailed learning roadmaps for any career, skill, certification, programming language, exam, or technology. The roadmap is generated as structured JSON and rendered into a premium infographic.
+              Get a beautifully structured, step-by-step learning plan for any career, skill, or technology. Tell us what you want to learn, your current level, and how much time you have!
             </p>
 
             <div className="mt-10 grid gap-4 md:grid-cols-2">
@@ -296,6 +305,7 @@ export default function Roadmap() {
                 </button>
               ))}
             </div>
+          </div>
           </div>
         )}
 
