@@ -100,9 +100,8 @@ function getLevel(text = "") {
   const lower = text.toLowerCase();
 
   if (
-    /\b(beginner|begineer|beginer|begginer|biginner)\b/i.test(lower) ||
+    /\b(beginner|begineer|beginer|begginer|biginner|begginner|fresher)\b/i.test(lower) ||
     lower.includes("no experience") ||
-    lower.includes("fresher") ||
     lower.includes("starting from scratch") ||
     lower.includes("new to this")
   ) {
@@ -110,13 +109,13 @@ function getLevel(text = "") {
   }
 
   if (
-    /\b(intermediate|intermidiate|intermediete|intermediatee)\b/i.test(lower)
+    /\b(intermediate|intermidiate|intermediete|intermediatee|intermadiate)\b/i.test(lower)
   ) {
     return "Intermediate";
   }
 
   if (
-    /\b(advanced|advnced|advanved|advance|experienced|expert)\b/i.test(lower)
+    /\b(advanced|advnced|advanved|advaced|advance|experienced|expert)\b/i.test(lower)
   ) {
     return "Advanced";
   }
@@ -214,10 +213,8 @@ function getGoalFromText(text = "", skipFallback = false) {
     lower.length >= 2 &&
     lower.length < 60 &&
     !lower.includes("month") &&
-    !lower.includes("beginner") &&
-    !lower.includes("intermediate") &&
-    !lower.includes("advanced") &&
-    !lower.includes("experience")
+    !lower.includes("year") &&
+    !/\b(beginner|begineer|beginer|begginer|biginner|begginner|intermediate|intermidiate|intermediete|intermediatee|intermadiate|advanced|advnced|advanved|advaced|advance|experienced|expert)\b/i.test(lower)
   ) {
     const isGibberish = 
       !/[a-zA-Z]/.test(lower) || 
@@ -286,12 +283,21 @@ function getConversationDetails(messages = []) {
       let wasWaitingForLevel = false;
       let wasWaitingForDuration = false;
       
-      if (i === newestUserIndex && i - 1 >= 0) {
-        if (messages[i - 1].role === "assistant" && messages[i - 1].content.includes("What is your current level")) {
-          wasWaitingForLevel = true;
+      if (i === newestUserIndex) {
+        let lastAsst = null;
+        for (let j = i - 1; j >= 0; j--) {
+          if (messages[j].role === "assistant") {
+            lastAsst = messages[j];
+            break;
+          }
         }
-        if (messages[i - 1].role === "assistant" && messages[i - 1].content.includes("How long do you want your")) {
-          wasWaitingForDuration = true;
+        if (lastAsst) {
+          if (lastAsst.content.includes("What is your current level") || lastAsst.content.includes("valid level")) {
+            wasWaitingForLevel = true;
+          }
+          if (lastAsst.content.includes("How long do you want your") || lastAsst.content.includes("meant months or years")) {
+            wasWaitingForDuration = true;
+          }
         }
       }
 
@@ -555,7 +561,7 @@ Always prioritize these exact responses. Do not output markdown other than the b
 
     if (!details.level) {
       const lastMsg = messages[messages.length - 2];
-      const alreadyAsked = lastMsg && lastMsg.role === "assistant" && lastMsg.content.includes("What is your current level");
+      const alreadyAsked = lastMsg && lastMsg.role === "assistant" && (lastMsg.content.includes("What is your current level") || lastMsg.content.includes("valid level"));
       
       if (alreadyAsked) {
         return res.json({
