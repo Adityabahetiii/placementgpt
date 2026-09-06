@@ -181,10 +181,10 @@ export default function ChatArea() {
   };
 
   return (
-    <main className="flex h-screen min-h-0 flex-1 flex-col overflow-hidden bg-[#060b1d] text-white">
+    <main className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#060b1d] text-white">
       {/* Chat content: only this section scrolls */}
       <section className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-        <div className="mx-auto w-full max-w-5xl px-6 py-8">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6 md:py-8">
           {messages.length === 0 ? (
             <div className="pt-5">
               <div className="mb-10 max-w-2xl">
@@ -213,7 +213,7 @@ export default function ChatArea() {
                 </p>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {suggestions.map((item) => {
+                  {suggestions.map((item, index) => {
                     const Icon = item.icon;
 
                     return (
@@ -221,7 +221,9 @@ export default function ChatArea() {
                         key={item.label}
                         onClick={() => sendMessage(item.prompt)}
                         disabled={loading}
-                        className="group flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-400/30 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        className={`group items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-400/30 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 ${
+                          index >= 2 ? "hidden sm:flex" : "flex"
+                        }`}
                       >
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
                           <Icon size={19} />
@@ -305,8 +307,8 @@ export default function ChatArea() {
       </section>
 
       {/* Fixed input area */}
-      <footer className="shrink-0 border-t border-slate-800 bg-[#080f25] px-6 py-4">
-        <div className="mx-auto flex max-w-5xl gap-3">
+      <footer className="shrink-0 border-t border-slate-800 bg-[#080f25] px-4 py-3 md:px-6 md:py-4">
+        <div className="mx-auto flex max-w-5xl gap-2 md:gap-3">
           <input
             type="text"
             value={message}
