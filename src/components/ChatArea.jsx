@@ -1,5 +1,7 @@
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useRef, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Bot,
   Send,
@@ -12,6 +14,11 @@ import {
   Map,
   UserRound,
 } from "lucide-react";
+import {
+  getChatSession,
+  saveChatSession,
+  generateSessionId,
+} from "../utils/chatStorage";
 
 const suggestions = [
   {
@@ -47,18 +54,23 @@ const suggestions = [
 ];
 
 export default function ChatArea() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const chatIdFromUrl = searchParams.get("chatId");
+
+  const [activeChatId, setActiveChatId] = useState(chatIdFromUrl || null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem("placementgpt_chat");
-    return saved ? JSON.parse(saved) : [];
+    if (chatIdFromUrl) {
+      const session = getChatSession(chatIdFromUrl);
+      if (session && Array.isArray(session.messages)) {
+        return session.messages;
+      }
+    }
+    return [];
   });
   const [loading, setLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
-
-  useEffect(() => {
-    localStorage.setItem("placementgpt_chat", JSON.stringify(messages));
-  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -87,8 +99,6 @@ export default function ChatArea() {
       throw new Error(data.error || "Failed to get response");
     }
 
-    // If the server indicates the response was truncated and can be continued,
-    // request a continuation automatically (no UI changes required).
     if (data && data.can_continue) {
       try {
         const contResp = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
@@ -117,6 +127,13 @@ export default function ChatArea() {
 
     if (!cleanText || loading) return;
 
+    let currentId = activeChatId;
+    if (!currentId) {
+      currentId = generateSessionId();
+      setActiveChatId(currentId);
+      setSearchParams({ chatId: currentId }, { replace: true });
+    }
+
     const userMessage = {
       sender: "user",
       text: cleanText,
@@ -128,24 +145,32 @@ export default function ChatArea() {
     setMessage("");
     setLoading(true);
 
+    saveChatSession(currentId, updatedMessages);
+
     try {
       const reply = await getBotReply(updatedMessages);
 
-      setMessages((previous) => [
-        ...previous,
+      const finalMessages = [
+        ...updatedMessages,
         {
           sender: "bot",
           text: reply,
         },
-      ]);
+      ];
+
+      setMessages(finalMessages);
+      saveChatSession(currentId, finalMessages);
     } catch (error) {
-      setMessages((previous) => [
-        ...previous,
+      const errorMessages = [
+        ...updatedMessages,
         {
           sender: "bot",
           text: "❌ Something went wrong. Please check that the backend server is running.",
         },
-      ]);
+      ];
+
+      setMessages(errorMessages);
+      saveChatSession(currentId, errorMessages);
     } finally {
       setLoading(false);
     }
@@ -158,7 +183,7 @@ export default function ChatArea() {
   return (
     <main className="flex h-screen min-h-0 flex-1 flex-col overflow-hidden bg-[#060b1d] text-white">
       {/* Chat content: only this section scrolls */}
-      <section className="min-h-0 flex-1 overflow-y-auto">
+      <section className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
         <div className="mx-auto w-full max-w-5xl px-6 py-8">
           {messages.length === 0 ? (
             <div className="pt-5">
@@ -241,8 +266,10 @@ export default function ChatArea() {
                     }`}
                   >
                     {msg.sender === "bot" ? (
-                      <div className="prose prose-invert prose-sm max-w-none prose-p:leading-7 prose-headings:text-white prose-strong:text-cyan-200">
-                        <ReactMarkdown>{msg.text}</ReactMarkdown>
+                      <div className="prose prose-invert prose-sm max-w-none prose-p:leading-7 prose-headings:text-white prose-strong:text-cyan-200 prose-table:block prose-table:overflow-x-auto prose-th:border prose-th:border-slate-700 prose-th:px-3 prose-th:py-2 prose-td:border prose-td:border-slate-700 prose-td:px-3 prose-td:py-2">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {msg.text}
+                        </ReactMarkdown>
                       </div>
                     ) : (
                       <p className="whitespace-pre-wrap break-words">

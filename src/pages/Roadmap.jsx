@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import RoadmapSVG from "../components/RoadmapSVG";
 import {
   ROADMAP_TEMPLATES,
@@ -57,11 +58,10 @@ function RoadmapArtifact({ item }) {
             <button
               key={entry.id}
               onClick={() => setTemplateId(entry.id)}
-              className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                templateId === entry.id
-                  ? "border-cyan-400 bg-cyan-400/15 text-cyan-200"
-                  : "border-slate-700 bg-slate-900 text-slate-300 hover:border-cyan-500 hover:text-cyan-200"
-              }`}
+              className={`rounded-full border px-4 py-2 text-sm font-medium transition ${templateId === entry.id
+                ? "border-cyan-400 bg-cyan-400/15 text-cyan-200"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:border-cyan-500 hover:text-cyan-200"
+                }`}
             >
               {entry.name}
             </button>
@@ -246,7 +246,7 @@ export default function Roadmap() {
 
       addBotMessage(
         data.reply ||
-          "Could you tell me a little more about the roadmap you need?"
+        "Could you tell me a little more about the roadmap you need?"
       );
     } catch (error) {
       console.error("Roadmap chat error:", error);
@@ -311,7 +311,9 @@ export default function Roadmap() {
               {item.sender === "bot" && item.type === "text" && (
                 <div className="max-w-3xl rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-900/90 p-4 shadow-lg shadow-slate-950/30">
                   <div className="prose prose-invert prose-sm max-w-none">
-                    <ReactMarkdown>{item.text}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {item.text}
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}

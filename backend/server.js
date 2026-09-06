@@ -9,7 +9,84 @@ app.use(express.json({ limit: "10mb" }));
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
-const MODEL = "llama-3.1-8b-instant";
+// llama-3.1-8b-instant was deprecated by Groq (shut down Aug 16, 2026).
+// openai/gpt-oss-120b gives noticeably better quality for the same free tier;
+// openai/gpt-oss-20b is the faster/lighter drop-in replacement if you hit
+// rate limits or want lower latency. Override with GROQ_MODEL in .env.
+const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+
+// Conversational temperature: lower = more focused/deterministic,
+// higher = more varied phrasing. 0.2 keeps things factual and consistent.
+const CHAT_TEMPERATURE = 0.2;
+
+/* -------------------- SYSTEM PROMPTS -------------------- */
+// Shared formatting rules. The chat UI renders replies with react-markdown
+// (GFM tables now enabled on the frontend), but small/medium models will
+// still produce an unreadable "wall of pipes" if a table gets too wide or
+// too long for a narrow chat bubble. These rules keep output readable
+// regardless of table support.
+const FORMATTING_RULES = `
+Formatting rules (follow strictly):
+- Write in clean Markdown: use "##"/"###" headings, **bold**, and bullet or numbered lists to organize information.
+- Only use a Markdown table when comparing a SMALL set of items (5 rows or fewer) across 2-3 columns max. Every table row MUST be on its own line, in real GFM table syntax (a header row, a "---" separator row, then data rows) — never put an entire table on a single line.
+- For anything longer than ~5 items (e.g. a list of 40 interview questions), do NOT use a table at all. Instead, group items under topic headings (e.g. "### Arrays", "### Trees") and list each item as "1. **Question** — one-line note on what it tests", one per line.
+- Keep individual list items short (one line) so they're easy to scan in a chat window.
+- Never produce a single giant paragraph packed with "|" characters.
+- Leave a blank line between a table and any text that follows it, and a blank line between two separate tables.
+
+Example of a table WRONG way (never do this — everything on one line):
+| Week | Goal | | --- | --- | | 1 | Learn X | | 2 | Learn Y |
+
+Example of a table done the RIGHT way (each row on its own line):
+| Week | Goal |
+| --- | --- |
+| 1 | Learn X |
+| 2 | Learn Y |
+`;
+
+const CHAT_SYSTEM_PROMPT = `You are PlacementGPT, a friendly and knowledgeable placement preparation assistant. Help students with placements, DSA, SQL, aptitude, resumes, interviews, cybersecurity, and career preparation. Give accurate, practical, and well-organized answers.
+${FORMATTING_RULES}`;
+
+const MOCK_INTERVIEW_SYSTEM_PROMPT = `You are an expert technical and HR interviewer conducting a realistic SPOKEN mock interview. Your replies are converted to speech and read aloud to the candidate, so:
+- Write in plain, natural spoken sentences. NEVER use Markdown: no headings, no "**bold**", no bullet points, no numbered lists, no tables, no asterisks or hash symbols.
+- Structure the interview like a real one:
+  1. Start with a warm greeting and ask the candidate's name.
+  2. If their name transcription seems garbled, unclear, or you get conflicting versions of it, ask ONCE to confirm which spelling/version is correct, then accept whatever they say next and move on immediately — never ask about their name more than twice total, since speech-to-text can misfire on names and dwelling on it wastes interview time.
+  2. Once you have their name, ask 2-3 short introductory/HR questions (e.g. "tell me about yourself", "why are you interested in this role") before moving into role-specific technical or behavioral questions.
+  3. Once you know their name, address them by name naturally and occasionally when asking questions or giving feedback (e.g. "Aditya, can you walk me through how you'd approach this?"). Don't overuse it — once every couple of turns is natural, not every single line.
+- Ask ONE question at a time.
+- After the candidate answers, give brief, encouraging spoken feedback (2-3 sentences), then smoothly ask the next question.
+- Keep each turn short — you're having a conversation, not writing a report. Aim for 3-5 sentences per turn total.
+- Maintain a warm, professional, encouraging tone, like a real interviewer would speak.
+- If you receive a message that is explicitly marked as a proctor/system note rather than something the candidate said, treat it as an instruction from the exam proctor, not as the candidate's own words, and respond accordingly (e.g. deliver a brief closing statement if told the interview is ending).`;
+
+const TECHNICAL_INTERVIEW_SYSTEM_PROMPT = `You are a senior software engineer conducting the technical/coding portion of an interview. The candidate is solving Python DSA (data structures & algorithms) problems in a code editor; you receive their submitted code and the automated test results for it (pass/fail per test case).
+${FORMATTING_RULES}
+Additional rules specific to code review:
+- Start by stating clearly whether the tests passed or failed, in one sentence.
+- Briefly assess correctness, then discuss the time and space complexity (Big-O) of their approach.
+- Point out at least one thing done well, and one concrete way it could be improved (edge cases, cleaner style, a more optimal approach) — like a real interviewer would.
+- If a short corrected/alternative code snippet would help, you may include ONE small \`\`\`python code block, but keep it brief (a few lines) — this is code review commentary, not a full rewrite.
+- If all tests passed and the solution is solid, say so plainly and encourage them to move to the next question.
+- Keep the whole response focused and skimmable — a few short paragraphs at most, not an exhaustive essay.`;
+
+/* -------------------- MARKDOWN TABLE REPAIR -------------------- */
+// Small/fast models sometimes ignore the "one row per line" instruction and
+// emit an entire table as one paragraph, e.g.:
+//   | Week | Goal | | --- | --- | | 1 | Do X | | 2 | Do Y |
+// react-markdown + remark-gfm can only render a table when each row is on
+// its own line. This repairs that shape regardless of prompt compliance,
+// by inserting a line break at every "row boundary" — a "|" immediately
+// followed by another "|" with only whitespace between them.
+function fixSquishedMarkdownTables(text = "") {
+  // Collapse any run of 2+ pipes (with only spaces/tabs between them) into a
+  // single "row boundary": one pipe, a newline, one pipe. This handles both
+  // simple "| |" boundaries and messier runs like "| | |" that occur when
+  // an empty trailing cell butts up against the next row or table's pipe.
+  return text
+    .replace(/(?:\|[ \t]*){2,}/g, "|\n|")
+    .replace(/\n{3,}/g, "\n\n");
+}
 
 /* -------------------- JSON HELPERS -------------------- */
 
@@ -248,13 +325,12 @@ app.post("/chat", async (req, res) => {
 
     const completion = await groq.chat.completions.create({
       model: MODEL,
-      temperature: 0.7,
+      temperature: CHAT_TEMPERATURE,
       max_tokens: maxTokens,
       messages: [
         {
           role: "system",
-          content:
-            "You are PlacementGPT. Help students with placements, DSA, SQL, aptitude, resumes, interviews, cybersecurity, and career preparation. Use markdown and keep answers useful.",
+          content: CHAT_SYSTEM_PROMPT,
         },
         ...messages,
       ],
@@ -279,13 +355,13 @@ app.post("/chat", async (req, res) => {
       try {
         const contCompletion = await groq.chat.completions.create({
           model: MODEL,
-          temperature: 0.7,
+          temperature: CHAT_TEMPERATURE,
           max_tokens: maxTokens,
           messages: [
             {
               role: "system",
               content:
-                "Continue the previous assistant reply from where it stopped. Do not repeat previous content. Continue naturally.",
+                `Continue the previous assistant reply from exactly where it stopped. Do not repeat previous content. Continue naturally.\n${FORMATTING_RULES}`,
             },
             ...messages,
           ],
@@ -302,7 +378,7 @@ app.post("/chat", async (req, res) => {
         const stillTruncated = contFinish === "length" || contFinish === "max_tokens";
 
         return res.json({
-          reply: replyText,
+          reply: fixSquishedMarkdownTables(replyText),
           finish_reason: contFinish,
           truncated: stillTruncated,
           can_continue: stillTruncated,
@@ -314,7 +390,7 @@ app.post("/chat", async (req, res) => {
     }
 
     return res.json({
-      reply: replyText,
+      reply: fixSquishedMarkdownTables(replyText),
       finish_reason: finishReason,
       truncated,
       can_continue: truncated,
@@ -615,6 +691,136 @@ ${resumeText}
     });
   }
 });
+
+/* -------------------- MOCK INTERVIEW CHAT -------------------- */
+
+app.post("/mock-interview", async (req, res) => {
+  try {
+    const { messages } = req.body;
+
+    if (!Array.isArray(messages)) {
+      return res.status(400).json({
+        error: "Messages are required.",
+      });
+    }
+
+    const maxTokens = 4096;
+
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      temperature: CHAT_TEMPERATURE,
+      max_tokens: maxTokens,
+      messages: [
+        {
+          role: "system",
+          content: MOCK_INTERVIEW_SYSTEM_PROMPT,
+        },
+        ...messages,
+      ],
+    });
+
+    const choice = completion.choices && completion.choices[0];
+    const content = choice?.message?.content || "";
+    const finishReason = choice?.finish_reason || choice?.finishReason || null;
+
+    const truncated = finishReason === "length" || finishReason === "max_tokens";
+    let replyText = content;
+
+    if (truncated) {
+      replyText = `${content}\n\nThe response exceeded the maximum length. Click Continue to generate the remaining content.`;
+    }
+
+    if (req.body.continue === true && truncated) {
+      try {
+        const contCompletion = await groq.chat.completions.create({
+          model: MODEL,
+          temperature: CHAT_TEMPERATURE,
+          max_tokens: maxTokens,
+          messages: [
+            {
+              role: "system",
+              content: `Continue the previous assistant reply from exactly where it stopped. Do not repeat previous content. Continue naturally.\n${FORMATTING_RULES}`,
+            },
+            ...messages,
+          ],
+        });
+
+        const contChoice = contCompletion.choices && contCompletion.choices[0];
+        const contText = contChoice?.message?.content || "";
+        const contFinish = contChoice?.finish_reason || contChoice?.finishReason || null;
+
+        replyText = `${content}\n${contText}`;
+        const stillTruncated = contFinish === "length" || contFinish === "max_tokens";
+
+        return res.json({
+          reply: fixSquishedMarkdownTables(replyText),
+          finish_reason: contFinish,
+          truncated: stillTruncated,
+          can_continue: stillTruncated,
+        });
+      } catch (err) {
+        console.error("MOCK INTERVIEW CONTINUATION ERROR:", err);
+      }
+    }
+
+    return res.json({
+      reply: fixSquishedMarkdownTables(replyText),
+      finish_reason: finishReason,
+      truncated,
+      can_continue: truncated,
+    });
+  } catch (error) {
+    console.error("MOCK INTERVIEW ERROR:", error);
+
+    return res.status(500).json({
+      error: "Failed to get AI response.",
+    });
+  }
+});
+
+app.post("/technical-interview", async (req, res) => {
+  try {
+    const { question, code, testResults, messages } = req.body;
+
+    if (!question || !code) {
+      return res.status(400).json({ error: "question and code are required." });
+    }
+
+    const testSummary = Array.isArray(testResults) && testResults.length > 0
+      ? testResults
+        .map((t, i) => {
+          if (t.passed) return `Test ${i + 1}: PASS`;
+          const errPart = t.error ? `, error: ${t.error}` : "";
+          return `Test ${i + 1}: FAIL (expected ${JSON.stringify(t.expected)}, got ${JSON.stringify(t.actual)}${errPart})`;
+        })
+        .join("\n")
+      : "No tests have been run yet.";
+
+    const userContent = `Problem: ${question.title} (${question.difficulty}, ${question.topic})\n${question.description}\n\nCandidate's submitted code:\n\`\`\`python\n${code}\n\`\`\`\n\nAutomated test results:\n${testSummary}`;
+
+    const priorMessages = Array.isArray(messages) ? messages : [];
+
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      temperature: CHAT_TEMPERATURE,
+      max_tokens: 2048,
+      messages: [
+        { role: "system", content: TECHNICAL_INTERVIEW_SYSTEM_PROMPT },
+        ...priorMessages,
+        { role: "user", content: userContent },
+      ],
+    });
+
+    const choice = completion.choices && completion.choices[0];
+    const reply = choice?.message?.content || "";
+
+    return res.json({ reply: fixSquishedMarkdownTables(reply) });
+  } catch (error) {
+    console.error("TECHNICAL INTERVIEW ERROR:", error);
+    return res.status(500).json({ error: "Failed to get interviewer feedback." });
+  }
+});
+
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -623,7 +829,9 @@ app.get("/", (req, res) => {
       "/chat",
       "/roadmap-chat",
       "/generate-roadmap",
-      "/analyze-resume"
+      "/analyze-resume",
+      "/mock-interview",
+      "/technical-interview"
     ],
   });
 });
